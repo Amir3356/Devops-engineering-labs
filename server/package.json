@@ -1,0 +1,40 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node api-gateway/server.js",
+    "gateway": "node api-gateway/server.js",
+    "auth": "node auth-service/server.js",
+    "user": "node user-service/server.js",
+    "product": "node product-service/server.js",
+    "order": "node order-service/server.js",
+    "payment": "node payment-service/server.js",
+    "inventory": "node inventory-service/server.js",
+    "notification": "node notification-service/server.js",
+    "seed:admin": "node utils/knexManager.js seed:admin",
+    "migrate": "node utils/knexManager.js migrate",
+    "migrate:fresh": "node utils/knexManager.js migrate:fresh",
+    "seed": "node utils/knexManager.js seed",
+    "db:reset": "node utils/knexManager.js reset"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@casl/ability": "^7.1.3",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "knex": "^3.3.0",
+    "pg": "^8.23.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
