@@ -5,8 +5,9 @@ import crypto from 'crypto';
  * Encapsulates the domain entity structure and validation rules for phone-based authentication.
  */
 class UserModel {
-  constructor({ id, phone, password, role, name, createdAt, updatedAt }) {
+  constructor({ id, email, phone, password, role, name, createdAt, updatedAt }) {
     this.id = id || `usr-${crypto.randomUUID()}`;
+    this.email = (email || '').trim().toLowerCase();
     this.phone = (phone || '').trim();
     this.password = password; // Hashed password
     this.role = role || 'customer'; // Strictly 'customer' or 'admin'
@@ -42,6 +43,7 @@ class UserModel {
   toSafeJSON() {
     return {
       id: this.id,
+      email: this.email,
       phone: this.phone,
       name: this.name,
       role: this.role,
@@ -53,6 +55,7 @@ class UserModel {
   toJSON() {
     return {
       id: this.id,
+      email: this.email,
       phone: this.phone,
       password: this.password,
       role: this.role,

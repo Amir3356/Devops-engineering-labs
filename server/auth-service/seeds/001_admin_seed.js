@@ -12,7 +12,7 @@ export async function seed(knex) {
 
   const account = {
     email,
-    phone: null, // administrators are not given a phone number
+     // administrators are not given a phone number
     password: hashedPassword,
     role: 'admin',
     name,

@@ -160,7 +160,7 @@ export default function CustomerDashboard() {
             <span className="topbar-avatar">{(user?.name || 'C').charAt(0).toUpperCase()}</span>
             <span className="topbar-user-text">
               <span className="topbar-user-name">{user?.name || 'Customer'}</span>
-              <span className="topbar-user-role">{user?.role || 'customer'} (RBAC Active)</span>
+              <span className="topbar-user-role">{user?.role || 'customer'}</span>
             </span>
             <ChevronDown size={16} />
           </div>
@@ -304,8 +304,8 @@ export default function CustomerDashboard() {
         </main>
       </div>
 
-      {/* Floating Cart Button when items in cart */}
-      {cartCount > 0 && (
+      {/* Floating Cart Button when items in cart (hidden on the My Orders tab) */}
+      {cartCount > 0 && activeTab !== 'orders' && (
         <button
           type="button"
           className="floating-cart-pill"

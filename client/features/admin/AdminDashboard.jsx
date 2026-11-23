@@ -166,6 +166,7 @@ export default function AdminDashboard() {
   const [replenishAmount, setReplenishAmount] = useState('10');
   const [adjustError, setAdjustError] = useState('');
   const [isSubmittingStock, setIsSubmittingStock] = useState(false);
+  const [isAddStockFlow, setIsAddStockFlow] = useState(false); // opened from the "Add Stock" header button
 
   // Purchase State & Filter
   const [purchases, setPurchases] = useState(() => {
@@ -556,13 +557,55 @@ export default function AdminDashboard() {
   };
 
   // Stock Handlers
-  const handleOpenAdjustModal = (item, mode = 'replenish') => {
+  const handleOpenAdjustModal = (item, mode = 'replenish', pickProduct = false) => {
+    setIsAddStockFlow(pickProduct);
     setAdjustItem(item);
     setAdjustMode(mode);
     setAdjustQty(item.stockQuantity);
     setReplenishAmount('10');
     setAdjustError('');
     setIsAdjustModalOpen(true);
+  };
+
+  // "Add Stock" header button: pick any catalog product and add units to it.
+  // Products without an inventory row yet get one created on save.
+  const addStockOptions = useMemo(() => {
+    const byId = new Map();
+    inventory.forEach((i) => {
+      byId.set(String(i.productId), {
+        productId: i.productId,
+        productName: i.productName || i.productId,
+        stockQuantity: Number(i.stockQuantity) || 0,
+        hasInventoryRow: true
+      });
+    });
+    products.forEach((p) => {
+      if (!byId.has(String(p.id))) {
+        byId.set(String(p.id), {
+          productId: p.id,
+          productName: p.name,
+          stockQuantity: 0,
+          hasInventoryRow: false
+        });
+      }
+    });
+    return [...byId.values()].sort((a, b) => String(a.productName).localeCompare(String(b.productName)));
+  }, [inventory, products]);
+
+  const handleOpenAddStock = () => {
+    if (addStockOptions.length === 0) {
+      toast.error('Create a product first — there is nothing to add stock to yet.');
+      return;
+    }
+    handleOpenAdjustModal(addStockOptions[0], 'replenish', true);
+  };
+
+  const handleSelectAddStockProduct = (productId) => {
+    const option = addStockOptions.find((o) => String(o.productId) === String(productId));
+    if (option) {
+      setAdjustItem(option);
+      setAdjustError('');
+    }
   };
 
   const handleSubmitStockChange = async (e) => {
@@ -579,7 +622,7 @@ export default function AdminDashboard() {
           setIsSubmittingStock(false);
           return;
         }
-        await updateStockApi(adjustItem.productId, quantity);
+        await updateStockApi(adjustItem.productId, quantity, adjustItem.productName);
         addLocalEvent({
           type: 'StockUpdated',
           productId: adjustItem.productId,
@@ -594,7 +637,12 @@ export default function AdminDashboard() {
           setIsSubmittingStock(false);
           return;
         }
-        await replenishStockApi(adjustItem.productId, amount);
+        if (isAddStockFlow && !adjustItem.hasInventoryRow) {
+          // No inventory row yet: create it with the added amount
+          await updateStockApi(adjustItem.productId, amount, adjustItem.productName);
+        } else {
+          await replenishStockApi(adjustItem.productId, amount);
+        }
         addLocalEvent({
           type: 'StockReplenished',
           productId: adjustItem.productId,
@@ -1586,7 +1634,7 @@ export default function AdminDashboard() {
             <div className="side-user-info">
               <span className="side-user-name">{user?.name || 'Administrator'}</span>
               <span className="side-user-role">{user?.role || 'admin'}</span>
-              <span className="side-user-contact">{user?.email || user?.phone}</span>
+              {user?.email && <span className="side-user-contact">{user.email}</span>}
             </div>
           </div>
           <button type="button" className="side-signout-btn" onClick={logout}>
@@ -1688,6 +1736,17 @@ export default function AdminDashboard() {
                   <p className="admin-view-sub">
                     Direct real-time warehouse telemetry and adjustments powered by <strong>Inventory Service</strong> (Port 5006).
                   </p>
+                </div>
+                <div className="admin-header-actions">
+                  <button
+                    type="button"
+                    className="btn-admin-action"
+                    onClick={handleOpenAddStock}
+                    disabled={isLoading}
+                  >
+                    <Plus size={16} />
+                    <span>Add Stock</span>
+                  </button>
                 </div>
               </div>
 
@@ -2215,8 +2274,10 @@ export default function AdminDashboard() {
         <div className="modal-backdrop" onClick={() => setIsAdjustModalOpen(false)}>
           <div className="modal-content admin-form-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header-with-badge">
-              <h3>{adjustMode === 'set' ? 'Set Stock Level' : 'Replenish Inventory'}</h3>
-              <p className="text-muted text-sm">{adjustItem.productName} (ID: {adjustItem.productId})</p>
+              <h3>{adjustMode === 'set' ? 'Set Stock Level' : isAddStockFlow ? 'Add Stock' : 'Replenish Inventory'}</h3>
+              {!isAddStockFlow && (
+                <p className="text-muted text-sm">{adjustItem.productName} (ID: {adjustItem.productId})</p>
+              )}
             </div>
 
             {adjustError && (
@@ -2227,6 +2288,24 @@ export default function AdminDashboard() {
             )}
 
             <form onSubmit={handleSubmitStockChange} className="admin-form">
+              {isAddStockFlow && (
+                <div className="form-group">
+                  <label htmlFor="add-stock-product">Product</label>
+                  <select
+                    id="add-stock-product"
+                    value={adjustItem.productId}
+                    onChange={(e) => handleSelectAddStockProduct(e.target.value)}
+                    required
+                  >
+                    {addStockOptions.map((item) => (
+                      <option key={item.productId} value={item.productId}>
+                        {item.productName} — {item.hasInventoryRow ? `${item.stockQuantity} in stock` : 'not stocked yet'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {adjustMode === 'set' ? (
                 <div className="form-group">
                   <label>New Stock Quantity</label>
@@ -2244,7 +2323,7 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <div className="form-group">
-                  <label>Units to Add (Replenish)</label>
+                  <label>{isAddStockFlow ? 'Quantity to Add' : 'Units to Add (Replenish)'}</label>
                   <input
                     type="number"
                     min="1"
@@ -2272,7 +2351,7 @@ export default function AdminDashboard() {
                   className="btn-save"
                   disabled={isSubmittingStock}
                 >
-                  {isSubmittingStock ? 'Saving...' : adjustMode === 'set' ? 'Update Stock Count' : 'Replenish Inventory'}
+                  {isSubmittingStock ? 'Saving...' : adjustMode === 'set' ? 'Update Stock Count' : isAddStockFlow ? 'Add Stock' : 'Replenish Inventory'}
                 </button>
               </div>
             </form>

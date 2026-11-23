@@ -22,17 +22,19 @@ export const getProductStockApi = (productId) => {
   });
 };
 
-export const updateStockApi = (productId, data) => {
+// Server expects { stockQuantity, productName? }
+export const updateStockApi = (productId, stockQuantity, productName) => {
   return request(`/api/inventory/stock/${productId}`, {
     method: 'PUT',
-    body: JSON.stringify(data)
+    body: JSON.stringify({ stockQuantity, productName })
   });
 };
 
-export const replenishStockApi = (data) => {
+// Server expects { productId, amount } — amount may be negative to deduct
+export const replenishStockApi = (productId, amount) => {
   return request('/api/inventory/replenish', {
     method: 'POST',
-    body: JSON.stringify(data)
+    body: JSON.stringify({ productId, amount })
   });
 };
 

@@ -57,6 +57,7 @@ class UserRepository {
     if (!row) return null;
     return new UserModel({
       id: row.id,
+      email: row.email,
       phone: row.phone,
       password: row.password,
       role: row.role,
@@ -89,12 +90,13 @@ class UserRepository {
     await this.ready;
     const model = new UserModel(userData);
     const query = `
-      INSERT INTO users (id, phone, password, role, name, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO users (id, email, phone, password, role, name, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *;
     `;
     const values = [
       model.id,
+      model.email || null,
       model.phone,
       model.password,
       model.role,
