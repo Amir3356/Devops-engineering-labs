@@ -856,13 +856,12 @@ export default function AdminDashboard() {
                         <th>Current Stock</th>
                         <th>Expires at</th>
                         <th>Status</th>
-                        <th>Stock Management</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredInventory.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="text-center py-6 text-muted">
+                          <td colSpan={6} className="text-center py-6 text-muted">
                             No inventory items match your search or filter.
                           </td>
                         </tr>
@@ -923,27 +922,6 @@ export default function AdminDashboard() {
                                     <CheckCircle2 size={13} /> In Stock
                                   </span>
                                 )}
-                              </td>
-
-                              <td>
-                                <div className="quick-replenish-buttons">
-                                  <button
-                                    type="button"
-                                    className="btn-table-edit"
-                                    onClick={() => handleOpenAdjustModal(item)}
-                                    title="Adjust Stock Quantity or Set Levels"
-                                  >
-                                    <Edit2 size={14} /> Adjust
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="btn-replenish"
-                                    onClick={() => handleQuickReplenish(item, 10)}
-                                    title="Quick Replenish +10 units"
-                                  >
-                                    +10 Units
-                                  </button>
-                                </div>
                               </td>
                             </tr>
                           );
