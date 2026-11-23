@@ -34,7 +34,6 @@ import {
   LogOut,
   User,
   ChevronDown,
-  RotateCw,
   CheckCircle2,
   XCircle,
   Warehouse,
@@ -78,7 +77,6 @@ export default function AdminDashboard() {
   );
   const [customers, setCustomers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Search & Filter states
   const [productQuery, setProductQuery] = useState('');
@@ -773,24 +771,6 @@ export default function AdminDashboard() {
                     Direct real-time warehouse telemetry and adjustments powered by <strong>Inventory Service</strong> (Port 5006).
                   </p>
                 </div>
-                <button
-                  type="button"
-                  className="btn-admin-action"
-                  onClick={async () => {
-                    setIsRefreshing(true);
-                    try {
-                      const res = await getAllStockApi();
-                      if (res?.success && Array.isArray(res.data)) setInventory(res.data);
-                    } finally {
-                      setIsRefreshing(false);
-                    }
-                  }}
-                  disabled={isRefreshing}
-                  title="Synchronize with Inventory Service"
-                >
-                  <RotateCw size={16} className={isRefreshing ? 'spin-icon' : ''} />
-                  <span>{isRefreshing ? 'Syncing...' : 'Refresh Stock'}</span>
-                </button>
               </div>
 
               {/* Filter and Search Bar */}
