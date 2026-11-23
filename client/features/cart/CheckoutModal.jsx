@@ -3,7 +3,6 @@ import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useEvents } from '../../context/EventContext';
 import orderService from '../../services/order.service';
-import { processPaymentApi } from '../../api/payment.api';
 import { shippingSchema } from '../../utils/validators';
 import { X, ShieldCheck, CheckCircle2, Lock, AlertCircle, Loader2, Mail } from 'lucide-react';
 
@@ -13,7 +12,6 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
   const { addLocalEvent } = useEvents();
 
   const [step, setStep] = useState('review'); // 'review' | 'paying' | 'success'
-  const [paymentStatus, setPaymentStatus] = useState('success'); // 'success' | 'failure' (to test both paths!)
   const [orderResult, setOrderResult] = useState(null);
   const [shippingError, setShippingError] = useState('');
 
@@ -55,7 +53,7 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
       })),
       totalAmount: cartTotal,
       shippingAddress: shippingInfo,
-      status: 'Pending',
+      status: 'Paid',
       createdAt: new Date().toISOString()
     };
 
@@ -68,42 +66,20 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
     });
 
     try {
-      // 3. Process payment via live Payment Service microservice
-      const paymentRes = await processPaymentApi({
+      // Emit Inventory Stock Update Event (Inventory Service reaction)
+      addLocalEvent('StockUpdated', 'inventory-service', {
         orderId: orderData.orderId,
-        amount: orderData.totalAmount,
-        paymentMethod: 'Credit Card',
-        simulateFailure: paymentStatus === 'failure'
+        action: 'DEDUCT',
+        items: orderData.items.map(i => ({ productId: i.productId, quantity: i.quantity }))
       });
 
-      if (paymentRes && paymentRes.success && paymentRes.data) {
-        const paymentRecord = paymentRes.data;
-
-        // Emit PaymentCompleted Event
-        addLocalEvent('PaymentCompleted', 'payment-service', paymentRecord);
-
-        // Emit Inventory Stock Update Event (Inventory Service reaction)
-        addLocalEvent('StockUpdated', 'inventory-service', {
-          orderId: orderData.orderId,
-          action: 'DEDUCT',
-          items: orderData.items.map(i => ({ productId: i.productId, quantity: i.quantity }))
-        });
-
-        // Store order via order business logic service to order-service backend
-        await orderService.recordCompletedOrder(orderData, paymentRecord.id || paymentRecord.paymentId);
-        setOrderResult({ ...orderData, status: 'Paid', paymentId: paymentRecord.id || paymentRecord.paymentId });
-        clearCart();
-        setStep('success');
-      } else {
-        throw new Error(paymentRes?.message || 'Payment processing was not approved');
-      }
+      // Store order via order business logic service to order-service backend
+      await orderService.recordCompletedOrder(orderData);
+      setOrderResult({ ...orderData, status: 'Paid' });
+      clearCart();
+      setStep('success');
     } catch (err) {
-      // Emit PaymentFailed Event
-      addLocalEvent('PaymentFailed', 'payment-service', {
-        orderId: orderData.orderId,
-        amount: orderData.totalAmount,
-        reason: err.message || 'Card payment declined'
-      });
+      setShippingError(err.message || 'Order registration failed');
       setStep('failed');
     }
   };
@@ -117,9 +93,9 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
 
         {step === 'review' && (
           <div className="checkout-content">
-            <h2 className="checkout-title">Checkout & Payment Gateway</h2>
+            <h2 className="checkout-title">Checkout &amp; Place Order</h2>
             <p className="checkout-sub">
-              Directly processed via <strong>Payment Service</strong> and persisted in <strong>Order Service</strong>.
+              Orders are validated and processed directly into <strong>Order Service</strong>.
             </p>
 
             <div className="checkout-grid">
@@ -207,31 +183,6 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
                     />
                   </div>
                 </div>
-
-                {/* Payment Option */}
-                <h4 className="section-subtitle mt-4">2. Payment Gateway Mode</h4>
-                <div className="payment-simulation-toggle">
-                  <label className={`sim-radio ${paymentStatus === 'success' ? 'active' : ''}`}>
-                    <input
-                      type="radio"
-                      name="paymentSim"
-                      value="success"
-                      checked={paymentStatus === 'success'}
-                      onChange={() => setPaymentStatus('success')}
-                    />
-                    <span>💳 Credit Card / Online Payment (Approved)</span>
-                  </label>
-                  <label className={`sim-radio ${paymentStatus === 'failure' ? 'active' : ''}`}>
-                    <input
-                      type="radio"
-                      name="paymentSim"
-                      value="failure"
-                      checked={paymentStatus === 'failure'}
-                      onChange={() => setPaymentStatus('failure')}
-                    />
-                    <span>⚠️ Test Card Decline (Simulate Failure)</span>
-                  </label>
-                </div>
               </div>
 
               {/* Order Summary */}
@@ -262,7 +213,7 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
                 </div>
 
                 <button className="btn-pay-now" onClick={handlePlaceOrderAndPay}>
-                  <Lock size={16} /> Pay ${cartTotal.toFixed(2)}
+                  <Lock size={16} /> Place Order (${cartTotal.toFixed(2)})
                 </button>
                 <div className="secure-badge">
                   <ShieldCheck size={14} /> 256-bit Encrypted Microservices Sandbox
@@ -275,15 +226,15 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
         {step === 'paying' && (
           <div className="payment-loading-state">
             <Loader2 size={48} className="spinner" />
-            <h3>Processing Payment via Payment Service...</h3>
-            <p>Publishing <code>OrderPlaced</code> and evaluating payment simulation...</p>
+            <h3>Processing Order...</h3>
+            <p>Publishing <code>OrderPlaced</code> and updating stock ledger...</p>
           </div>
         )}
 
         {step === 'success' && (
           <div className="payment-result-state success">
             <CheckCircle2 size={56} className="text-emerald-500" />
-            <h2>Payment Completed Successfully!</h2>
+            <h2>Order Placed Successfully!</h2>
             <p>
               Order <strong>#{orderResult?.orderId}</strong> has been registered in Order Service.
             </p>
@@ -291,7 +242,6 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
               <h4>Events Emitted & Handled:</h4>
               <ul>
                 <li>⚡ <code>OrderPlaced</code> emitted by <em>order-service</em></li>
-                <li>⚡ <code>PaymentCompleted</code> emitted by <em>payment-service</em></li>
                 <li>⚡ <code>StockUpdated</code> emitted by <em>inventory-service</em></li>
               </ul>
             </div>
@@ -310,14 +260,10 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
         {step === 'failed' && (
           <div className="payment-result-state failure">
             <AlertCircle size={56} className="text-red-500" />
-            <h2>Payment Simulation Declined</h2>
-            <p>The simulated payment gateway returned a transaction failure.</p>
-            <div className="event-reaction-callout">
-              <h4>Event Emitted:</h4>
-              <p>⚡ <code>PaymentFailed</code> emitted by <em>payment-service</em></p>
-            </div>
+            <h2>Order Submission Failed</h2>
+            <p>An error occurred while registering your order.</p>
             <button className="btn-retry-payment" onClick={() => setStep('review')}>
-              Try Again with Successful Simulation
+              Try Again
             </button>
           </div>
         )}

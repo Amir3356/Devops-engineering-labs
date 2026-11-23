@@ -10,7 +10,6 @@
     "user": "node user-service/server.js",
     "product": "node product-service/server.js",
     "order": "node order-service/server.js",
-    "payment": "node payment-service/server.js",
     "inventory": "node inventory-service/server.js",
     "notification": "node notification-service/server.js",
     "seed:admin": "node utils/knexManager.js seed:admin",

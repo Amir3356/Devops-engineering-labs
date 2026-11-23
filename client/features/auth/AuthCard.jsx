@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 
 const HIGHLIGHTS = [
-  'Secure Checkout with Simulated Payments',
+  'Instant & Reliable Order Processing',
   'Live Order Tracking & Notifications',
   'Event Trail of Every Transaction'
 ];
@@ -42,8 +42,8 @@ function AuthShell({ children }) {
         <div className="auth-brand-body">
           <h1>Shop, Order &amp; Track in Real Time</h1>
           <p>
-            Browse the catalog, check out securely and follow every order as it moves
-            through payment, inventory and delivery — customers and administrators in one place.
+            Browse the catalog, place orders and follow every item as it moves
+            through inventory and delivery — customers and administrators in one place.
           </p>
           <ul className="auth-highlights">
             {HIGHLIGHTS.map(item => (

@@ -3,7 +3,6 @@ import authRoutes from './auth.routes.js';
 import userRoutes from './user.routes.js';
 import productRoutes from './product.routes.js';
 import orderRoutes from './order.routes.js';
-import paymentRoutes from './payment.routes.js';
 import inventoryRoutes from './inventory.routes.js';
 import notificationRoutes from './notification.routes.js';
 
@@ -14,7 +13,6 @@ router.use('/api/auth', authRoutes);
 router.use('/api/users', userRoutes);
 router.use('/api/products', productRoutes);
 router.use('/api/orders', orderRoutes);
-router.use('/api/payments', paymentRoutes);
 router.use('/api/inventory', inventoryRoutes);
 router.use('/api/notifications', notificationRoutes);
 

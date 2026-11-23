@@ -3,7 +3,6 @@ import {
   Compass,
   Package,
   Bell,
-  CreditCard,
   LogOut,
   ShoppingBag,
   User
@@ -54,14 +53,6 @@ export default function ProductDiscoverySidebar({
         </button>
 
         <span className="side-section-label">Account</span>
-        <button
-          className={`discovery-nav-tab ${activeTab === 'payments' ? 'active' : ''}`}
-          onClick={() => setActiveTab('payments')}
-        >
-          <CreditCard size={17} />
-          <span>My Payment</span>
-        </button>
-
         <button
           className={`discovery-nav-tab ${activeTab === 'notifications' ? 'active' : ''}`}
           onClick={() => setActiveTab('notifications')}

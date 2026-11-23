@@ -19,7 +19,6 @@ import {
   replenishStockApi
 } from '../../api/inventory.api';
 import { getCustomersApi } from '../../api/auth.api';
-import { getAllPaymentRecordsApi } from '../../api/payment.api';
 import {
   Layers,
   Boxes,
@@ -28,7 +27,6 @@ import {
   Trash2,
   Edit2,
   AlertTriangle,
-  DollarSign,
   Upload,
   Loader2,
   Search,
@@ -64,7 +62,7 @@ export default function AdminDashboard() {
   const ability = useAbility();
 
   // Navigation tab state - default to 'catalog'
-  const [activeAdminTab, setActiveAdminTab] = useState('catalog'); // 'catalog' | 'inventory' | 'orders' | 'payments'
+  const [activeAdminTab, setActiveAdminTab] = useState('catalog'); // 'catalog' | 'inventory' | 'orders'
 
   // Microservices live data state
   const [products, setProducts] = useState([]);
@@ -79,7 +77,6 @@ export default function AdminDashboard() {
     ])
   );
   const [customers, setCustomers] = useState([]);
-  const [payments, setPayments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -127,9 +124,8 @@ export default function AdminDashboard() {
       getCategoriesApi(),
       getAllStockApi(),
       orderService.fetchAllAdminOrders(),
-      getCustomersApi(),
-      getAllPaymentRecordsApi()
-    ]).then(([prodRes, catRes, invRes, ordsRes, custRes, payRes]) => {
+      getCustomersApi()
+    ]).then(([prodRes, catRes, invRes, ordsRes, custRes]) => {
       if (prodRes.status === 'fulfilled' && prodRes.value?.success && Array.isArray(prodRes.value.data)) {
         setProducts(prodRes.value.data);
       } else {
@@ -158,12 +154,6 @@ export default function AdminDashboard() {
         setCustomers(custRes.value.data);
       } else {
         setCustomers([]);
-      }
-
-      if (payRes.status === 'fulfilled' && payRes.value?.success && Array.isArray(payRes.value.data)) {
-        setPayments(payRes.value.data);
-      } else {
-        setPayments([]);
       }
     });
   };
@@ -605,16 +595,6 @@ export default function AdminDashboard() {
             <span>Customer Orders</span>
             <span className="admin-nav-count">{orders.length}</span>
           </button>
-
-          <span className="side-section-label">Financial Ledger</span>
-          <button
-            className={`admin-nav-item ${activeAdminTab === 'payments' ? 'active' : ''}`}
-            onClick={() => setActiveAdminTab('payments')}
-          >
-            <DollarSign size={18} />
-            <span>Payments</span>
-            <span className="admin-nav-count">{payments.length}</span>
-          </button>
         </nav>
 
         <div className="side-footer">
@@ -995,54 +975,6 @@ export default function AdminDashboard() {
                                 <option value="Cancelled">Cancelled</option>
                               </select>
                             </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: PAYMENTS */}
-          {activeAdminTab === 'payments' && (
-            <div className="admin-view-content">
-              <div className="admin-page-header">
-                <div className="admin-page-heading">
-                  <h2 className="admin-view-title">Payment Transaction Ledger</h2>
-                  <p className="admin-view-sub">Real transactions processed by Payment Service.</p>
-                </div>
-              </div>
-
-              <div className="admin-table-card">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Transaction ID</th>
-                      <th>Order Ref</th>
-                      <th>Amount</th>
-                      <th>Method</th>
-                      <th>Gateway Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {payments.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="text-center py-6 text-muted">
-                          No payment transactions recorded in Payment Service ledger.
-                        </td>
-                      </tr>
-                    ) : (
-                      payments.map((t) => {
-                        const amount = Number(t.amount) || 0;
-                        return (
-                          <tr key={t.id || t.paymentId}>
-                            <td><code>{t.id || t.paymentId}</code></td>
-                            <td><code>#{t.orderId}</code></td>
-                            <td className="font-semibold">${amount.toFixed(2)}</td>
-                            <td>{t.paymentMethod || 'Card'}</td>
-                            <td><span className="status-badge paid">{t.status}</span></td>
                           </tr>
                         );
                       })

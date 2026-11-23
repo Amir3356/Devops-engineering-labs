@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_MULTIPLE_DATABASES: auth_db,user_db,product_db,order_db,payment_db,inventory_db,notification_db
+      POSTGRES_MULTIPLE_DATABASES: auth_db,user_db,product_db,order_db,inventory_db,notification_db
     ports:
       - "5433:5432"
     volumes:
@@ -121,31 +121,7 @@ services:
       - ecommerce-net
 
   # ========================================================
-  # 6. Payment Microservice (Port 5005)
-  # ========================================================
-  payment-service:
-    build:
-      context: ./server
-      dockerfile: payment-service/Dockerfile
-    container_name: payment-service
-    restart: unless-stopped
-    environment:
-      PORT: 5005
-      PAYMENT_DB_URL: postgresql://postgres:postgres@postgres:5432/payment_db
-      JWT_SECRET: ecommerce-microservices-secret-key-2026
-      DB_POOL_MAX: 20
-      DB_POOL_IDLE_TIMEOUT: 30000
-      DB_POOL_CONN_TIMEOUT: 5000
-    ports:
-      - "5005:5005"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - ecommerce-net
-
-  # ========================================================
-  # 7. Inventory Microservice (Port 5006)
+  # 6. Inventory Microservice (Port 5006)
   # ========================================================
   inventory-service:
     build:
@@ -208,7 +184,6 @@ services:
       USER_SERVICE_URL: http://user-service:5001
       PRODUCT_SERVICE_URL: http://product-service:5002
       ORDER_SERVICE_URL: http://order-service:5004
-      PAYMENT_SERVICE_URL: http://payment-service:5005
       INVENTORY_SERVICE_URL: http://inventory-service:5006
       NOTIFICATION_SERVICE_URL: http://notification-service:5007
     ports:
@@ -220,7 +195,6 @@ services:
       - user-service
       - product-service
       - order-service
-      - payment-service
       - inventory-service
       - notification-service
     networks:

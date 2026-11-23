@@ -18,8 +18,6 @@ export function defineAbilityForUser(user) {
     can('create', 'Order');
     can('read', 'Order', { customer_id: user.id });
     can('cancel', 'Order', { customer_id: user.id });
-    can('create', 'Payment');
-    can('read', 'Payment', { customer_id: user.id });
     can('manage', 'Profile', { id: user.id });
     can('read', 'Notification', { user_id: user.id });
   } else {

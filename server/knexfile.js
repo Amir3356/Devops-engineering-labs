@@ -35,7 +35,6 @@ export const services = {
   user: buildKnexConfig(process.env.USER_DB_URL, 'user-service'),
   product: buildKnexConfig(process.env.PRODUCT_DB_URL, 'product-service'),
   order: buildKnexConfig(process.env.ORDER_DB_URL, 'order-service'),
-  payment: buildKnexConfig(process.env.PAYMENT_DB_URL, 'payment-service'),
   inventory: buildKnexConfig(process.env.INVENTORY_DB_URL, 'inventory-service'),
   notification: buildKnexConfig(process.env.NOTIFICATION_DB_URL, 'notification-service')
 };

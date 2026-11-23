@@ -2,12 +2,10 @@ import { useState, useEffect } from 'react';
 import { useCart } from '../../context/CartContext';
 import { getProductsApi } from '../../api/product.api';
 import { getNotificationsApi, markNotificationAsReadApi } from '../../api/notification.api';
-import { getPaymentHistoryApi } from '../../api/payment.api';
 import orderService from '../../services/order.service';
 import ProductDiscoverySidebar from './ProductDiscoverySidebar';
 import OrderHistory from '../orders/OrderHistory';
 import CustomerNotifications from '../notifications/CustomerNotifications';
-import CustomerPayments from '../payments/CustomerPayments';
 
 import {
   ShoppingCart,
@@ -28,14 +26,13 @@ export default function CustomerDashboard() {
 
   // State initialized purely from live data
   const [products, setProducts] = useState([]);
-  const [activeTab, setActiveTab] = useState('discovery'); // 'discovery' | 'orders' | 'payments' | 'notifications'
+  const [activeTab, setActiveTab] = useState('discovery'); // 'discovery' | 'orders' | 'notifications'
   const [isLoading, setIsLoading] = useState(true);
 
   // Added-to-cart alert state
   const [addedItemName, setAddedItemName] = useState('');
   const [addedProductId, setAddedProductId] = useState(null);
   const [orders, setOrders] = useState([]);
-  const [payments, setPayments] = useState([]);
   const [notifications, setNotifications] = useState([]);
 
   // Fetch live products, customer orders & notifications
@@ -43,9 +40,8 @@ export default function CustomerDashboard() {
     Promise.allSettled([
       getProductsApi(),
       orderService.fetchOrders(),
-      getNotificationsApi(),
-      getPaymentHistoryApi()
-    ]).then(([prodRes, ordsRes, notifRes, payRes]) => {
+      getNotificationsApi()
+    ]).then(([prodRes, ordsRes, notifRes]) => {
       if (prodRes.status === 'fulfilled' && prodRes.value?.success && Array.isArray(prodRes.value.data)) {
         setProducts(prodRes.value.data);
       } else {
@@ -62,12 +58,6 @@ export default function CustomerDashboard() {
         setNotifications(notifRes.value.data);
       } else {
         setNotifications([]);
-      }
-
-      if (payRes.status === 'fulfilled' && payRes.value?.success && Array.isArray(payRes.value.data)) {
-        setPayments(payRes.value.data);
-      } else {
-        setPayments([]);
       }
     }).finally(() => {
       setIsLoading(false);
@@ -250,13 +240,6 @@ export default function CustomerDashboard() {
               onMarkRead={handleMarkNotificationRead}
               onMarkAllRead={handleMarkAllNotificationsRead}
             />
-          </div>
-        )}
-
-        {/* TAB 4: MY PAYMENTS */}
-        {activeTab === 'payments' && (
-          <div className="customer-embedded-view">
-            <CustomerPayments payments={payments} />
           </div>
         )}
       </main>

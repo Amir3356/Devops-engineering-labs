@@ -1,7 +1,7 @@
 import { request } from './http';
 
 /**
- * Order & Payment Services API Calls
+ * Order Service API Calls
  */
 
 export const placeOrderApi = (orderData) => {
