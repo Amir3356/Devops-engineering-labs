@@ -2,7 +2,6 @@ import { useAuth } from '../../context/AuthContext';
 import {
   Compass,
   Package,
-  Bell,
   LogOut,
   ShoppingBag,
   User
@@ -11,13 +10,12 @@ import {
 /**
  * ProductDiscoverySidebar component
  * RBAC Customer Dashboard sidebar providing customer identity,
- * primary workspace navigation, notifications, and session logout.
+ * primary workspace navigation, and session logout.
  */
 export default function ProductDiscoverySidebar({
   activeTab,
   setActiveTab,
-  ordersCount = 0,
-  unreadNotificationsCount = 0
+  ordersCount = 0
 }) {
   const { user, logout } = useAuth();
 
@@ -50,18 +48,6 @@ export default function ProductDiscoverySidebar({
           <Package size={17} />
           <span>My Orders</span>
           {ordersCount > 0 && <span className="discovery-tab-badge highlight">{ordersCount}</span>}
-        </button>
-
-        <span className="side-section-label">Account</span>
-        <button
-          className={`discovery-nav-tab ${activeTab === 'notifications' ? 'active' : ''}`}
-          onClick={() => setActiveTab('notifications')}
-        >
-          <Bell size={17} />
-          <span>Notifications</span>
-          {unreadNotificationsCount > 0 && (
-            <span className="discovery-tab-badge unread-badge">{unreadNotificationsCount}</span>
-          )}
         </button>
       </div>
 

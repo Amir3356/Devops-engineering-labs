@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useCart } from '../../context/CartContext';
 import { getProductsApi } from '../../api/product.api';
-import { getNotificationsApi, markNotificationAsReadApi } from '../../api/notification.api';
 import orderService from '../../services/order.service';
 import ProductDiscoverySidebar from './ProductDiscoverySidebar';
 import OrderHistory from '../orders/OrderHistory';
-import CustomerNotifications from '../notifications/CustomerNotifications';
 
 import {
   ShoppingCart,
@@ -19,29 +17,27 @@ import {
 /**
  * CustomerDashboard
  * RBAC Protected Workspace for Customers.
- * Displays live microservices data: products, orders, payments, notifications.
+ * Displays live microservices data: products, orders.
  */
 export default function CustomerDashboard() {
   const { addToCart, openCart, cartCount } = useCart();
 
   // State initialized purely from live data
   const [products, setProducts] = useState([]);
-  const [activeTab, setActiveTab] = useState('discovery'); // 'discovery' | 'orders' | 'notifications'
+  const [activeTab, setActiveTab] = useState('discovery'); // 'discovery' | 'orders'
   const [isLoading, setIsLoading] = useState(true);
 
   // Added-to-cart alert state
   const [addedItemName, setAddedItemName] = useState('');
   const [addedProductId, setAddedProductId] = useState(null);
   const [orders, setOrders] = useState([]);
-  const [notifications, setNotifications] = useState([]);
 
-  // Fetch live products, customer orders & notifications
+  // Fetch live products & customer orders
   useEffect(() => {
     Promise.allSettled([
       getProductsApi(),
-      orderService.fetchOrders(),
-      getNotificationsApi()
-    ]).then(([prodRes, ordsRes, notifRes]) => {
+      orderService.fetchOrders()
+    ]).then(([prodRes, ordsRes]) => {
       if (prodRes.status === 'fulfilled' && prodRes.value?.success && Array.isArray(prodRes.value.data)) {
         setProducts(prodRes.value.data);
       } else {
@@ -53,37 +49,10 @@ export default function CustomerDashboard() {
       } else {
         setOrders([]);
       }
-
-      if (notifRes.status === 'fulfilled' && notifRes.value?.success && Array.isArray(notifRes.value.data)) {
-        setNotifications(notifRes.value.data);
-      } else {
-        setNotifications([]);
-      }
     }).finally(() => {
       setIsLoading(false);
     });
   }, []);
-
-  const handleMarkNotificationRead = async (id) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-    );
-    try {
-      await markNotificationAsReadApi(id);
-    } catch {
-      // Ignored
-    }
-  };
-
-  const handleMarkAllNotificationsRead = async () => {
-    const unread = notifications.filter((n) => !n.isRead);
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-    for (const item of unread) {
-      markNotificationAsReadApi(item.id).catch(() => {});
-    }
-  };
-
-  const unreadNotificationsCount = notifications.filter((n) => !n.isRead).length;
 
   const handleAddToCart = (prod) => {
     addToCart(prod);
@@ -105,7 +74,6 @@ export default function CustomerDashboard() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         ordersCount={orders.length}
-        unreadNotificationsCount={unreadNotificationsCount}
       />
 
       {/* Main Workspace Area */}
@@ -229,17 +197,6 @@ export default function CustomerDashboard() {
         {activeTab === 'orders' && (
           <div className="customer-embedded-view">
             <OrderHistory />
-          </div>
-        )}
-
-        {/* TAB 3: NOTIFICATIONS */}
-        {activeTab === 'notifications' && (
-          <div className="customer-embedded-view">
-            <CustomerNotifications
-              notifications={notifications}
-              onMarkRead={handleMarkNotificationRead}
-              onMarkAllRead={handleMarkAllNotificationsRead}
-            />
           </div>
         )}
       </main>
