@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import axios from 'axios';
 import { corsOptions } from '../utils/cors.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -7,7 +8,6 @@ import config from './config/index.js';
 import routes from './routes/index.js';
 import { success } from '../utils/response.js';
 import { requestLogger, rateLimiter, notFoundHandler, errorHandler } from './middleware/index.js';
-import { uploadsDir } from '../utils/upload.js';
 
 const app = express();
 
@@ -29,8 +29,8 @@ app.get('/health', async (req, res) => {
 
   for (const [name, url] of Object.entries(config.SERVICES)) {
     try {
-      const response = await fetch(`${url}/health`, { signal: AbortSignal.timeout(1000) });
-      serviceStatuses[name.toLowerCase()] = response.ok ? 'HEALTHY' : 'DEGRADED';
+      const response = await axios.get(`${url}/health`, { timeout: 1000 });
+      serviceStatuses[name.toLowerCase()] = response.status === 200 ? 'HEALTHY' : 'DEGRADED';
     } catch {
       serviceStatuses[name.toLowerCase()] = 'OFFLINE';
     }
@@ -42,9 +42,6 @@ app.get('/health', async (req, res) => {
     services: serviceStatuses
   }, 'API Gateway is operational');
 });
-
-// 5.1 Serve Uploaded Media Statically (Multer Destination)
-app.use('/uploads', express.static(uploadsDir));
 
 // 6. Mount Central Microservice Routes
 app.use(routes);

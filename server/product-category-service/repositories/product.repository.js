@@ -34,37 +34,6 @@ class ProductRepository {
           updated_at TIMESTAMPTZ DEFAULT NOW()
         );
       `);
-
-      // Seed categories if empty
-      const catCountRes = await pool.query('SELECT COUNT(*) FROM categories');
-      if (parseInt(catCountRes.rows[0].count, 10) === 0) {
-        await pool.query(`
-          INSERT INTO categories (id, name, slug, description)
-          VALUES 
-            ('cat-audio', 'Audio', 'audio', 'Headphones, earbuds, and premium sound systems'),
-            ('cat-electronics', 'Electronics', 'electronics', 'Keyboards, gaming mice, monitors, and components'),
-            ('cat-wearables', 'Wearables', 'wearables', 'Smartwatches, fitness bands, and trackers'),
-            ('cat-accessories', 'Accessories', 'accessories', 'Fast chargers, cables, and protective cases')
-          ON CONFLICT (id) DO NOTHING;
-        `);
-      }
-
-      // Seed products if empty
-      const prodCountRes = await pool.query('SELECT COUNT(*) FROM products');
-      if (parseInt(prodCountRes.rows[0].count, 10) === 0) {
-        await pool.query(`
-          INSERT INTO products (id, name, category, price, stock, rating, description, image)
-          VALUES 
-            ('prod-001', 'AeroPulse Wireless Noise-Cancelling Headphones', 'Audio', 249.99, 18, 4.8, 'High-fidelity acoustic drivers with 40-hour battery life and adaptive hybrid noise cancellation.', 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80'),
-            ('prod-002', 'Quantum Lumina Mechanical Keyboard (RGB)', 'Electronics', 139.50, 4, 4.9, 'Aircraft-grade anodized aluminum frame with hot-swappable linear mechanical switches and per-key RGB backlighting.', 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=600&auto=format&fit=crop&q=80'),
-            ('prod-003', 'Titan Pro Ultra Smartwatch', 'Wearables', 329.00, 12, 4.7, 'Sapphire glass display with continuous ECG tracking, dual-frequency GPS, and 100m water resistance.', 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80'),
-            ('prod-004', 'OpticGlide Ergonomic Wireless Mouse', 'Electronics', 79.99, 25, 4.6, 'Sculpted ergonomic grip with hyper-fast MagSpeed scrolling and 8,000 DPI track-on-glass sensor.', 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=600&auto=format&fit=crop&q=80'),
-            ('prod-005', 'SonicSphere 360 Portable Bluetooth Speaker', 'Audio', 119.00, 3, 4.5, 'Deep spatial 360-degree acoustic projection with IPX7 waterproof enclosure and 15-hour playtime.', 'https://images.unsplash.com/photo-1545454675-3531b543be5d?w=600&auto=format&fit=crop&q=80'),
-            ('prod-006', 'HyperCharge 65W GaN Fast Charger', 'Accessories', 49.99, 40, 4.8, 'Next-generation Gallium Nitride (GaN) fast charger with dual USB-C Power Delivery ports.', 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=600&auto=format&fit=crop&q=80')
-          ON CONFLICT (id) DO NOTHING;
-        `);
-        console.log('[Product DB] Seeded catalog into PostgreSQL product_db.');
-      }
     } catch (err) {
       console.error('[Product Repository] PostgreSQL init error:', err.message);
     }

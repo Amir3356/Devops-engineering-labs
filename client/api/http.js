@@ -1,36 +1,68 @@
+import axios from 'axios';
+
 /**
- * Pure HTTP Transport Layer
+ * Axios HTTP Transport Layer
  * Routes all API calls through the central API Gateway (Port 5000).
  */
+const GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:5000';
 
-const GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL;
+const apiClient = axios.create({
+  baseURL: GATEWAY_URL,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+// Request interceptor to attach JWT Authorization token
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('ecommerce_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Response interceptor to format errors and extract data
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const payload = error.response?.data || {};
+    const message = payload.message || error.message || 'HTTP Request failed';
+    const customError = new Error(message);
+    customError.status = error.response?.status;
+    customError.details = payload;
+    return Promise.reject(customError);
+  }
+);
 
 export async function request(endpoint, options = {}) {
-  const token = localStorage.getItem('ecommerce_token');
+  const method = (options.method || 'GET').toLowerCase();
+  let data = undefined;
 
-  const headers = {
-    'Content-Type': 'application/json',
-    ...(options.headers || {})
-  };
-
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  if (options.body) {
+    if (typeof options.body === 'string') {
+      try {
+        data = JSON.parse(options.body);
+      } catch {
+        data = options.body;
+      }
+    } else {
+      data = options.body;
+    }
   }
 
-  const url = `${GATEWAY_URL}${endpoint}`;
-  const response = await fetch(url, {
-    ...options,
-    headers
+  const response = await apiClient({
+    url: endpoint,
+    method,
+    data,
+    headers: options.headers || {},
+    params: options.params || {}
   });
 
-  const payload = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    const error = new Error(payload.message || `HTTP Request failed with status ${response.status}`);
-    error.status = response.status;
-    error.details = payload;
-    throw error;
-  }
-
-  return payload;
+  return response.data;
 }
+
+export default apiClient;

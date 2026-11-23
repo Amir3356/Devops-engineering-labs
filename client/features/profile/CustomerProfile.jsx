@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
 import { useEvents } from '../../context/EventContext';
 import { User, Mail, MapPin, CheckCircle, Save } from 'lucide-react';
@@ -42,9 +43,10 @@ export default function CustomerProfile() {
       });
 
       setIsSaved(true);
+      toast.success('Profile updated successfully!');
       setTimeout(() => setIsSaved(false), 2500);
     } catch (err) {
-      alert(err.message || 'Profile update failed');
+      toast.error(err.message || 'Profile update failed');
     } finally {
       setIsUpdating(false);
     }

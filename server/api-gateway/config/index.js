@@ -15,7 +15,9 @@ export default {
     AUTH: process.env.AUTH_SERVICE_URL,
     USER: process.env.USER_SERVICE_URL,
     PRODUCT: process.env.PRODUCT_SERVICE_URL,
+    PURCHASE: process.env.PURCHASE_SERVICE_URL,
     ORDER: process.env.ORDER_SERVICE_URL,
+    SALE: process.env.SALE_SERVICE_URL,
     INVENTORY: process.env.INVENTORY_SERVICE_URL,
     NOTIFICATION: process.env.NOTIFICATION_SERVICE_URL
   }

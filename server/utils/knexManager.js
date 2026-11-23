@@ -171,6 +171,7 @@ async function main() {
 
       case 'seed:admin':
         await runSeed('auth');
+        await runSeed('user');
         break;
 
       default:

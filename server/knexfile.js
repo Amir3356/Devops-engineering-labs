@@ -33,8 +33,10 @@ export const buildKnexConfig = (dbUrl, serviceDirName) => ({
 export const services = {
   auth: buildKnexConfig(process.env.AUTH_DB_URL, 'auth-service'),
   user: buildKnexConfig(process.env.USER_DB_URL, 'user-service'),
-  product: buildKnexConfig(process.env.PRODUCT_DB_URL, 'product-service'),
+  product: buildKnexConfig(process.env.PRODUCT_DB_URL, 'product-category-service'),
+  purchase: buildKnexConfig(process.env.PURCHASE_DB_URL, 'purchase-service'),
   order: buildKnexConfig(process.env.ORDER_DB_URL, 'order-service'),
+  sale: buildKnexConfig(process.env.SALE_DB_URL, 'sale-service'),
   inventory: buildKnexConfig(process.env.INVENTORY_DB_URL, 'inventory-service'),
   notification: buildKnexConfig(process.env.NOTIFICATION_DB_URL, 'notification-service')
 };

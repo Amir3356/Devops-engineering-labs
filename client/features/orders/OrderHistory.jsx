@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useEvents } from '../../context/EventContext';
 import orderService from '../../services/order.service';
+import TanStackDataTable from '../../components/TanStackDataTable';
 import { Package, Clock, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
 
 export default function OrderHistory() {
@@ -11,7 +12,7 @@ export default function OrderHistory() {
 
   useEffect(() => {
     // Load customer orders via order business logic service
-    orderService.fetchOrders().then(ords => {
+    orderService.fetchOrders().then((ords) => {
       if (ords && ords.length > 0) setOrders(ords);
     });
   }, []);
@@ -53,11 +54,112 @@ export default function OrderHistory() {
     }
   };
 
+  const columns = useMemo(
+    () => [
+      {
+        header: 'Order ID',
+        id: 'orderId',
+        cell: ({ row }) => (
+          <code className="cat-slug font-mono">
+            #{row.original.orderId || row.original.id}
+          </code>
+        )
+      },
+      {
+        header: 'Date',
+        id: 'date',
+        cell: ({ row }) => (
+          <span className="text-muted text-sm font-mono">
+            {new Date(row.original.createdAt).toLocaleDateString()}
+          </span>
+        )
+      },
+      {
+        header: 'Items',
+        id: 'items',
+        cell: ({ row }) => {
+          const items = row.original.items || [];
+          if (items.length === 0) return <span className="text-muted text-xs">Standard Item</span>;
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+              {items.slice(0, 2).map((item, idx) => (
+                <div key={idx} style={{ fontSize: '0.84rem' }}>
+                  <span className="font-semibold">{item.quantity}x</span> {item.title || item.name}
+                </div>
+              ))}
+              {items.length > 2 && (
+                <span className="text-muted text-xs">+{items.length - 2} more item(s)</span>
+              )}
+            </div>
+          );
+        }
+      },
+      {
+        header: 'Total',
+        id: 'total',
+        cell: ({ row }) => (
+          <span className="font-semibold text-emerald">
+            ${(Number(row.original.totalAmount) || 0).toFixed(2)}
+          </span>
+        )
+      },
+      {
+        header: 'Ship To',
+        id: 'shipping',
+        cell: ({ row }) => (
+          <span className="text-sm text-muted">
+            {row.original.shippingAddress?.city
+              ? `${row.original.shippingAddress.city}, ${row.original.shippingAddress.country || ''}`
+              : 'Standard Delivery'}
+          </span>
+        )
+      },
+      {
+        header: 'Status',
+        id: 'status',
+        cell: ({ row }) => getStatusBadge(row.original.status)
+      },
+      {
+        header: 'Action',
+        id: 'action',
+        cell: ({ row }) => {
+          const order = row.original;
+          const canCancel = order.status === 'Paid' || order.status === 'Pending';
+          if (!canCancel) {
+            return <span className="text-muted text-xs font-mono">—</span>;
+          }
+          return (
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={() => handleCancelOrder(order.orderId || order.id)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '5px 10px',
+                fontSize: '0.78rem',
+                borderRadius: '6px'
+              }}
+              title="Cancel Order & Restore Inventory Stock"
+            >
+              <RotateCcw size={12} />
+              <span>Cancel</span>
+            </button>
+          );
+        }
+      }
+    ],
+    []
+  );
+
   return (
     <div className="order-history-view">
-      <div className="view-header">
-        <h2>My Order History</h2>
-        <p className="view-sub">Track order lifecycles and observe event-driven state transitions.</p>
+      <div className="admin-page-header view-header" style={{ textAlign: 'center' }}>
+        <div className="admin-page-heading" style={{ margin: '0 auto', textAlign: 'center' }}>
+          <h2 className="admin-view-title">My Order History</h2>
+          <p className="admin-view-sub view-sub">Track order lifecycles and observe event-driven state transitions.</p>
+        </div>
       </div>
 
       {orders.length === 0 ? (
@@ -67,76 +169,12 @@ export default function OrderHistory() {
           <p>Place an order in the catalog to observe the microservice order workflow!</p>
         </div>
       ) : (
-        <div className="order-cards-stack">
-          {orders.map((order) => {
-            const canCancel = order.status === 'Paid' || order.status === 'Pending';
-            return (
-              <div key={order.orderId} className="order-card">
-                <div className="order-card-header">
-                  <div>
-                    <span className="order-number">Order #{order.orderId}</span>
-                    <span className="order-date">
-                      Placed on {new Date(order.createdAt).toLocaleDateString()} at {new Date(order.createdAt).toLocaleTimeString()}
-                    </span>
-                  </div>
-                  <div className="order-header-right">
-                    {getStatusBadge(order.status)}
-                    <span className="order-total-price">${order.totalAmount.toFixed(2)}</span>
-                  </div>
-                </div>
-
-                {/* Tracking Progress Bar */}
-                <div className="order-tracking-stepper">
-                  <div className={`step-node ${order.status !== 'Cancelled' ? 'active' : 'cancelled'}`}>
-                    <div className="step-dot">1</div>
-                    <span className="step-label">Order Placed</span>
-                  </div>
-                  <div className={`step-line ${order.status !== 'Pending' && order.status !== 'Cancelled' ? 'active' : ''}`} />
-                  <div className={`step-node ${order.status === 'Paid' || order.status === 'Shipped' || order.status === 'Delivered' ? 'active' : ''}`}>
-                    <div className="step-dot">2</div>
-                    <span className="step-label">Payment Confirmed</span>
-                  </div>
-                  <div className={`step-line ${order.status === 'Shipped' || order.status === 'Delivered' ? 'active' : ''}`} />
-                  <div className={`step-node ${order.status === 'Shipped' || order.status === 'Delivered' ? 'active' : ''}`}>
-                    <div className="step-dot">3</div>
-                    <span className="step-label">Shipped</span>
-                  </div>
-                  <div className={`step-line ${order.status === 'Delivered' ? 'active' : ''}`} />
-                  <div className={`step-node ${order.status === 'Delivered' ? 'active' : ''}`}>
-                    <div className="step-dot">4</div>
-                    <span className="step-label">Delivered</span>
-                  </div>
-                </div>
-
-                {/* Items in this order */}
-                <div className="order-item-list">
-                  {order.items?.map((item, idx) => (
-                    <div key={idx} className="order-item-row">
-                      <span>{item.quantity}x {item.title}</span>
-                      <span>${(item.price * item.quantity).toFixed(2)}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Footer Actions */}
-                <div className="order-card-footer">
-                  <div className="shipping-to">
-                    Ship to: <strong>{order.shippingAddress?.street}, {order.shippingAddress?.city}</strong>
-                  </div>
-
-                  {canCancel && (
-                    <button
-                      className="btn-cancel-order"
-                      onClick={() => handleCancelOrder(order.orderId)}
-                    >
-                      <RotateCcw size={14} /> Cancel Order & Restore Stock
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <TanStackDataTable
+          data={orders}
+          columns={columns}
+          emptyMessage="No orders placed yet."
+          footerText={`Total Placed Orders: ${orders.length} • Powered by Order Service (Port 5004)`}
+        />
       )}
     </div>
   );

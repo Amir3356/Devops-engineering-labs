@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useCart } from '../../context/CartContext';
 import { Search, SlidersHorizontal, ShoppingCart, Eye, Sparkles, AlertTriangle, Package, Loader2 } from 'lucide-react';
 import { getProductsApi, getCategoriesApi } from '../../api/product.api';
@@ -161,7 +162,10 @@ export default function HomeCatalog({ onSelectProduct }) {
                       </button>
                       <button
                         className="btn-add-cart"
-                        onClick={() => addToCart(product, 1)}
+                        onClick={() => {
+                          addToCart(product, 1);
+                          toast.success(`${product.name} added to cart!`);
+                        }}
                         disabled={product.stock <= 0}
                       >
                         <ShoppingCart size={16} />

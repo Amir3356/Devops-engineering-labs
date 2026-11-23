@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { useCart } from '../../context/CartContext';
 import { X, ShoppingCart, ShieldCheck, Check, AlertTriangle, Truck } from 'lucide-react';
 
@@ -12,6 +13,7 @@ export default function ProductDetailModal({ product, onClose }) {
   const handleAddToCart = () => {
     addToCart(product, quantity);
     setIsAdded(true);
+    toast.success(`${product.name} added to cart!`);
     setTimeout(() => setIsAdded(false), 1500);
   };
 

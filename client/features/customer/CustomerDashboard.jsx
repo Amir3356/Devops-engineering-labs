@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
-import { getProductsApi } from '../../api/product.api';
+import { getProductsApi, getCategoriesApi } from '../../api/product.api';
+import { getAllStockApi } from '../../api/inventory.api';
 import orderService from '../../services/order.service';
 import ProductDiscoverySidebar from './ProductDiscoverySidebar';
 import OrderHistory from '../orders/OrderHistory';
@@ -26,10 +29,12 @@ import {
  */
 export default function CustomerDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { addToCart, openCart, cartCount } = useCart();
 
   // State initialized purely from live data
   const [products, setProducts] = useState([]);
+  const [availableCategories, setAvailableCategories] = useState(['All']);
   const [activeTab, setActiveTab] = useState('discovery'); // 'discovery' | 'orders'
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -40,16 +45,43 @@ export default function CustomerDashboard() {
   const [addedProductId, setAddedProductId] = useState(null);
   const [orders, setOrders] = useState([]);
 
-  // Fetch live products & customer orders
+  // Fetch live products, inventory stock, & customer orders
   useEffect(() => {
+    setIsLoading(true);
     Promise.allSettled([
       getProductsApi(),
+      getCategoriesApi(),
+      getAllStockApi(),
       orderService.fetchOrders()
-    ]).then(([prodRes, ordsRes]) => {
-      if (prodRes.status === 'fulfilled' && prodRes.value?.success && Array.isArray(prodRes.value.data)) {
-        setProducts(prodRes.value.data);
+    ]).then(([prodRes, catRes, stockRes, ordsRes]) => {
+      const stockMap = {};
+      if (stockRes.status === 'fulfilled' && stockRes.value?.success && Array.isArray(stockRes.value.data)) {
+        stockRes.value.data.forEach((item) => {
+          stockMap[item.productId || item.product_id] = Number(item.stockQuantity ?? item.stock_quantity ?? item.stock);
+        });
+      }
+
+      if (prodRes.status === 'fulfilled') {
+        const rawProducts = Array.isArray(prodRes.value?.data)
+          ? prodRes.value.data
+          : Array.isArray(prodRes.value)
+          ? prodRes.value
+          : [];
+
+        const enriched = rawProducts.map((prod) => ({
+          ...prod,
+          stock: stockMap[prod.id] !== undefined ? stockMap[prod.id] : Number(prod.stock || 0)
+        }));
+        setProducts(enriched);
       } else {
         setProducts([]);
+      }
+
+      if (catRes.status === 'fulfilled' && catRes.value?.success && Array.isArray(catRes.value.data)) {
+        const catNames = catRes.value.data.map((c) => c.name).filter(Boolean);
+        if (catNames.length > 0) {
+          setAvailableCategories(['All', ...Array.from(new Set(catNames))]);
+        }
       }
 
       if (ordsRes.status === 'fulfilled' && Array.isArray(ordsRes.value)) {
@@ -64,19 +96,17 @@ export default function CustomerDashboard() {
 
   const handleAddToCart = (prod) => {
     addToCart(prod);
-    setAddedItemName(prod.name);
-    setAddedProductId(prod.id);
-    setTimeout(() => {
-      setAddedItemName('');
-      setAddedProductId(null);
-    }, 2500);
-
-    // Open Cart Drawer so the customer immediately sees their updated cart
+    toast.success(`${prod.name} added to cart!`, {
+      action: {
+        label: 'View Cart',
+        onClick: () => openCart()
+      }
+    });
     openCart();
   };
 
   // Unique categories for filter dropdown
-  const categories = ['All', ...Array.from(new Set(products.map((p) => p.category).filter(Boolean)))];
+  const categories = Array.from(new Set([...availableCategories, ...products.map((p) => p.category).filter(Boolean)]));
 
   // Filtered products based on search and category
   const filteredProducts = products.filter((prod) => {
@@ -102,6 +132,30 @@ export default function CustomerDashboard() {
       <div className="admin-workspace">
         {/* Topbar matching Admin Portal */}
         <header className="admin-topbar">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {user?.role === 'admin' && (
+              <button
+                type="button"
+                onClick={() => navigate('/admin/dashboard')}
+                title="Return to Admin RBAC Portal"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '7px 14px',
+                  fontSize: '0.84rem',
+                  fontWeight: 600,
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-card)',
+                  color: 'var(--text-main)',
+                  cursor: 'pointer'
+                }}
+              >
+                ← Return to Admin Portal
+              </button>
+            )}
+          </div>
           <div className="topbar-user-chip">
             <span className="topbar-avatar">{(user?.name || 'C').charAt(0).toUpperCase()}</span>
             <span className="topbar-user-text">
@@ -114,23 +168,6 @@ export default function CustomerDashboard() {
 
         {/* Main Workspace Panel */}
         <main className="admin-main-panel">
-          {/* Added to Cart Toast Notification */}
-          {addedItemName && (
-            <div className="added-to-cart-toast" role="status" aria-live="polite">
-              <CheckCircle size={18} className="toast-icon" />
-              <div className="toast-message">
-                <strong>{addedItemName}</strong> added to cart!
-              </div>
-              <button
-                type="button"
-                className="toast-action-btn"
-                onClick={openCart}
-              >
-                View Cart ({cartCount})
-              </button>
-            </div>
-          )}
-
           {/* TAB 1: EXPLORE PRODUCTS */}
           {activeTab === 'discovery' && (
             <div className="admin-view-content">
@@ -206,9 +243,6 @@ export default function CustomerDashboard() {
                         </div>
 
                         <div className="product-card-details">
-                          <div className="product-card-rating">
-                            ★ {prod.rating || '5.0'}
-                          </div>
                           <h3 className="product-card-title" title={prod.name}>
                             {prod.name}
                           </h3>

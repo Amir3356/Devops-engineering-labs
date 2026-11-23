@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_MULTIPLE_DATABASES: auth_db,user_db,product_db,order_db,inventory_db,notification_db
+      POSTGRES_MULTIPLE_DATABASES: auth_db,user_db,product_db,purchase_db,order_db,sale_db,inventory_db,notification_db
     ports:
       - "5433:5432"
     volumes:
@@ -71,13 +71,13 @@ services:
       - ecommerce-net
 
   # ========================================================
-  # 4. Product Microservice (Port 5002)
+  # 4. Product & Category Microservice (Port 5002)
   # ========================================================
-  product-service:
+  product-category-service:
     build:
       context: ./server
-      dockerfile: product-service/Dockerfile
-    container_name: product-service
+      dockerfile: product-category-service/Dockerfile
+    container_name: product-category-service
     restart: unless-stopped
     environment:
       PORT: 5002
@@ -88,8 +88,33 @@ services:
       DB_POOL_CONN_TIMEOUT: 5000
     ports:
       - "5002:5002"
-    volumes:
-      - ./server/uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      ecommerce-net:
+        aliases:
+          - product-service
+          - product-category-service
+
+  # ========================================================
+  # 4b. Purchase Microservice (Port 5003)
+  # ========================================================
+  purchase-service:
+    build:
+      context: ./server
+      dockerfile: purchase-service/Dockerfile
+    container_name: purchase-service
+    restart: unless-stopped
+    environment:
+      PORT: 5003
+      PURCHASE_DB_URL: postgresql://postgres:postgres@postgres:5432/purchase_db
+      JWT_SECRET: ecommerce-microservices-secret-key-2026
+      DB_POOL_MAX: 20
+      DB_POOL_IDLE_TIMEOUT: 30000
+      DB_POOL_CONN_TIMEOUT: 5000
+    ports:
+      - "5003:5003"
     depends_on:
       postgres:
         condition: service_healthy
@@ -114,6 +139,30 @@ services:
       DB_POOL_CONN_TIMEOUT: 5000
     ports:
       - "5004:5004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ecommerce-net
+
+  # ========================================================
+  # 5b. Sale Microservice (Port 5005)
+  # ========================================================
+  sale-service:
+    build:
+      context: ./server
+      dockerfile: sale-service/Dockerfile
+    container_name: sale-service
+    restart: unless-stopped
+    environment:
+      PORT: 5005
+      SALE_DB_URL: postgresql://postgres:postgres@postgres:5432/sale_db
+      JWT_SECRET: ecommerce-microservices-secret-key-2026
+      DB_POOL_MAX: 20
+      DB_POOL_IDLE_TIMEOUT: 30000
+      DB_POOL_CONN_TIMEOUT: 5000
+    ports:
+      - "5005:5005"
     depends_on:
       postgres:
         condition: service_healthy
@@ -182,19 +231,21 @@ services:
       JWT_SECRET: ecommerce-microservices-secret-key-2026
       AUTH_SERVICE_URL: http://auth-service:5008
       USER_SERVICE_URL: http://user-service:5001
-      PRODUCT_SERVICE_URL: http://product-service:5002
+      PRODUCT_SERVICE_URL: http://product-category-service:5002
+      PURCHASE_SERVICE_URL: http://purchase-service:5003
       ORDER_SERVICE_URL: http://order-service:5004
+      SALE_SERVICE_URL: http://sale-service:5005
       INVENTORY_SERVICE_URL: http://inventory-service:5006
       NOTIFICATION_SERVICE_URL: http://notification-service:5007
     ports:
       - "5000:5000"
-    volumes:
-      - ./server/uploads:/app/uploads
     depends_on:
       - auth-service
       - user-service
-      - product-service
+      - product-category-service
+      - purchase-service
       - order-service
+      - sale-service
       - inventory-service
       - notification-service
     networks:

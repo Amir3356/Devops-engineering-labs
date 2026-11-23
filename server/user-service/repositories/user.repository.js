@@ -16,13 +16,16 @@ class UserRepository {
       await pool.query(`
         CREATE TABLE IF NOT EXISTS users (
           id VARCHAR(64) PRIMARY KEY,
-          phone VARCHAR(32) UNIQUE NOT NULL,
+          email VARCHAR(128) UNIQUE,
+          phone VARCHAR(32),
           password VARCHAR(255) NOT NULL,
           role VARCHAR(16) NOT NULL DEFAULT 'customer',
           name VARCHAR(128) NOT NULL,
           created_at TIMESTAMPTZ DEFAULT NOW(),
           updated_at TIMESTAMPTZ DEFAULT NOW()
         );
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(128) UNIQUE;
+        ALTER TABLE users ALTER COLUMN phone DROP NOT NULL;
       `);
 
       // Seed initial admin from environment variables if configured and table is empty

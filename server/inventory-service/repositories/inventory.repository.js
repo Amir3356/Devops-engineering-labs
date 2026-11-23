@@ -21,30 +21,6 @@ class InventoryRepository {
           updated_at TIMESTAMPTZ DEFAULT NOW()
         );
       `);
-
-      // Seed initial inventory matching catalog products if empty
-      const countRes = await pool.query('SELECT COUNT(*) FROM inventory_stock');
-      if (parseInt(countRes.rows[0].count, 10) === 0) {
-        const seedItems = [
-          { product_id: 'prod-001', product_name: 'Wireless Noise-Canceling Headphones', stock_quantity: 45, low_stock_threshold: 5 },
-          { product_id: 'prod-002', product_name: 'Ultra-HD Smart Watch V2', stock_quantity: 18, low_stock_threshold: 5 },
-          { product_id: 'prod-003', product_name: 'Ergonomic Mechanical Keyboard', stock_quantity: 32, low_stock_threshold: 5 },
-          { product_id: 'prod-004', product_name: 'Minimalist Leather Backpack', stock_quantity: 4, low_stock_threshold: 5 }, // Low stock!
-          { product_id: 'prod-005', product_name: 'Smart Ambient Desk Lamp', stock_quantity: 25, low_stock_threshold: 5 },
-          { product_id: 'prod-006', product_name: 'Ceramic Pour-Over Coffee Set', stock_quantity: 2, low_stock_threshold: 5 }, // Low stock!
-          { product_id: 'prod-007', product_name: 'Portable Bluetooth Speaker', stock_quantity: 50, low_stock_threshold: 5 },
-          { product_id: 'prod-008', product_name: 'Organic Cotton Crewneck', stock_quantity: 60, low_stock_threshold: 5 }
-        ];
-
-        for (const item of seedItems) {
-          await pool.query(`
-            INSERT INTO inventory_stock (product_id, product_name, stock_quantity, low_stock_threshold)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (product_id) DO NOTHING;
-          `, [item.product_id, item.product_name, item.stock_quantity, item.low_stock_threshold]);
-        }
-        console.log('[Inventory DB] Seeded demo inventory into inventory_db.');
-      }
     } catch (err) {
       console.error('[Inventory Repository] PostgreSQL init error:', err.message);
     }

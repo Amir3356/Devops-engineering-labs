@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
 import { loginSchema, registerSchema } from '../../utils/validators';
 import { useNavigate } from 'react-router-dom';
@@ -118,6 +119,7 @@ export default function AuthCard() {
         }
 
         const res = await login(formData.email, formData.password);
+        toast.success(`Welcome back, ${res?.user?.name || 'User'}!`);
         if (res?.user?.role === 'admin') {
           navigate('/admin/dashboard', { replace: true });
         } else {
@@ -126,7 +128,9 @@ export default function AuthCard() {
       } else {
         const result = registerSchema.safeParse(formData);
         if (!result.success) {
-          setErrorMsg(result.error.issues[0]?.message || 'Invalid registration details');
+          const msg = result.error.issues[0]?.message || 'Invalid registration details';
+          setErrorMsg(msg);
+          toast.error(msg);
           setIsLoading(false);
           return;
         }
@@ -137,6 +141,7 @@ export default function AuthCard() {
           password: formData.password,
           confirmPassword: formData.confirmPassword
         });
+        toast.success('Account created successfully!');
 
         // Immediately redirect into appropriate RBAC dashboard
         const targetRole = res?.user?.role || 'customer';
@@ -147,7 +152,9 @@ export default function AuthCard() {
         }
       }
     } catch (err) {
-      setErrorMsg(err.message || 'Authentication error');
+      const msg = err.message || 'Authentication error';
+      setErrorMsg(msg);
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
@@ -245,7 +252,7 @@ export default function AuthCard() {
                 id="auth-name"
                 type="text"
                 name="name"
-                placeholder="e.g. Abebe Bikila"
+                placeholder="Enter your full name"
                 value={formData.name}
                 onChange={handleChange}
                 required

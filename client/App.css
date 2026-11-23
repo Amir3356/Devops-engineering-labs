@@ -1605,6 +1605,22 @@ input, select, textarea {
 }
 
 /* Order History */
+.order-history-view .view-header,
+.view-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.order-history-view .view-header h2,
+.view-header h2 {
+  text-align: center;
+}
+
+.order-history-view .view-sub,
+.view-header .view-sub {
+  text-align: center;
+}
+
 .order-cards-stack {
   display: flex;
   flex-direction: column;
@@ -2157,6 +2173,52 @@ input, select, textarea {
   flex-direction: column;
   gap: 14px;
   margin-top: 14px;
+}
+
+.admin-modal-form,
+.purchase-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.purchase-modal-form .form-group,
+.admin-modal-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.purchase-modal-form .form-group label,
+.admin-modal-form .form-group label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 2px;
+}
+
+.purchase-modal-form input,
+.purchase-modal-form select,
+.admin-modal-form input,
+.admin-modal-form select {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-main);
+  font-size: 0.92rem;
+  width: 100%;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.purchase-modal-form input:focus,
+.purchase-modal-form select:focus,
+.admin-modal-form input:focus,
+.admin-modal-form select:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(31, 122, 77, 0.12);
+  outline: none;
 }
 
 .modal-footer-btns {
@@ -4427,4 +4489,245 @@ td.font-mono-cell > span { display: block; }
   font-weight: 600;
   background: rgba(31, 122, 77, 0.12);
   color: var(--primary-color);
+}
+
+/* =========================================================================
+   Admin Alert Settings & Inventory Notifications
+   ========================================================================= */
+
+.inventory-notifications-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.inventory-alert-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.inventory-alert-callout.warning {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.inventory-alert-callout.expiry {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.inventory-alert-title {
+  margin: 0;
+  font-size: 0.96rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inventory-alert-desc {
+  margin: 4px 0 10px 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.inventory-alert-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inventory-alert-pill {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inventory-alert-pill.warning {
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  color: #b45309;
+}
+
+.inventory-alert-pill.expiry {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #b91c1c;
+}
+
+/* Settings View Layout */
+.settings-view-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 20px;
+}
+
+.settings-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.settings-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.settings-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.settings-card-icon.warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+}
+
+.settings-card-icon.expiry {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+
+.settings-card-icon.general {
+  background: rgba(31, 122, 77, 0.12);
+  color: var(--primary-color);
+}
+
+.settings-card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.settings-card-subtitle {
+  margin: 3px 0 0 0;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.settings-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-field-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.settings-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-number-input {
+  width: 140px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-input, var(--bg-card));
+  color: var(--text-main);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.settings-input-unit {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.settings-chips-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.settings-chip-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.settings-chip-btn:hover {
+  background: var(--border-color);
+}
+
+.settings-chip-btn.active {
+  background: var(--primary-soft);
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.settings-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text-main);
+  cursor: pointer;
+  user-select: none;
+}
+
+.settings-preview-notice {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-color);
+  color: var(--text-muted);
+}
+
+.settings-actions-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  margin-top: 10px;
 }

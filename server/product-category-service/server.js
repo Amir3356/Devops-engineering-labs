@@ -6,7 +6,6 @@ import { corsOptions } from '../utils/cors.js';
 import config from './config/index.js';
 import productRoutes from './routes/product.routes.js';
 import { success } from '../utils/response.js';
-import { uploadsDir } from '../utils/upload.js';
 
 const app = express();
 
@@ -14,14 +13,11 @@ const app = express();
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Serve static uploads
-app.use('/uploads', express.static(uploadsDir));
-
 // Request logger
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
-    console.log(`[PRODUCT SERVICE] ${req.method} ${req.originalUrl} -> ${res.statusCode} (${Date.now() - start}ms)`);
+    console.log(`[PRODUCT & CATEGORY SERVICE] ${req.method} ${req.originalUrl} -> ${res.statusCode} (${Date.now() - start}ms)`);
   });
   next();
 });
@@ -29,11 +25,11 @@ app.use((req, res, next) => {
 // Health check
 app.get('/health', (req, res) => {
   return success(res, {
-    service: 'product-service',
+    service: 'product-category-service',
     status: 'UP',
     port: config.PORT,
     timestamp: new Date().toISOString()
-  }, 'Product Service is healthy');
+  }, 'Product & Category Service is healthy');
 });
 
 // Mount Routes under standard microservice path
@@ -41,10 +37,10 @@ app.use('/api/products', productRoutes);
 
 // Central error handler
 app.use((err, req, res, _next) => {
-  console.error('[PRODUCT SERVICE ERROR]', err);
+  console.error('[PRODUCT & CATEGORY SERVICE ERROR]', err);
   res.status(err.status || 500).json({
     success: false,
-    message: err.message || 'Internal Product Service Error',
+    message: err.message || 'Internal Product & Category Service Error',
     timestamp: new Date().toISOString()
   });
 });

@@ -10,9 +10,9 @@ RUN npm install --omit=dev
 COPY utils/ ./utils/
 
 # Copy service source code
-COPY product-service/ ./product-service/
+COPY product-category-service/ ./product-category-service/
 
-WORKDIR /app/product-service
+WORKDIR /app/product-category-service
 
 EXPOSE 5002
 

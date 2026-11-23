@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, useNavigate, useLocation } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AbilityProvider } from './context/AbilityContext';
 import { CartProvider, useCart } from './context/CartContext';
@@ -26,7 +27,7 @@ function MainApp() {
 
   // Auto-redirect if role changes
   useEffect(() => {
-    if (isAdmin && !location.pathname.startsWith('/admin')) {
+    if (isAdmin && location.pathname === '/') {
       navigate('/admin/dashboard');
     } else if (!isAdmin && location.pathname.startsWith('/admin')) {
       navigate('/');
@@ -80,6 +81,9 @@ function MainApp() {
 
       {/* Real-time Event Console Drawer */}
       <EventStreamDrawer />
+
+      {/* Global Sonner Toast Notifications (Auto-dismiss in 4 seconds) */}
+      <Toaster position="top-right" duration={4000} richColors closeButton />
     </div>
   );
 }

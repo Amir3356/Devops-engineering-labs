@@ -6,27 +6,31 @@ import bcrypt from 'bcryptjs';
  */
 export async function seed(knex) {
   const salt = bcrypt.genSaltSync(10);
-  const hashedPassword = bcrypt.hashSync('AEHJSS36', salt);
+  const adminPassword = process.env.ADMIN_PASSWORD || 'AEHJSS36';
+  const adminEmail = process.env.ADMIN_EMAIL || 'amirsiraj1995@gmail.com';
+  const adminPhone = process.env.ADMIN_PHONE || '+251938617803';
+  const adminName = process.env.ADMIN_NAME || 'System Administrator';
+  const hashedPassword = bcrypt.hashSync(adminPassword, salt);
 
   await knex('accounts')
     .insert({
       id: 'usr-admin-001',
-      email: 'amirsiraj1995@gmail.com',
-      phone: '+251938617803',
+      email: adminEmail,
+      phone: adminPhone,
       password: hashedPassword,
       role: 'admin',
-      name: 'System Administrator',
+      name: adminName,
       updated_at: knex.fn.now()
     })
     .onConflict('id')
     .merge({
-      email: 'amirsiraj1995@gmail.com',
-      phone: '+251938617803',
+      email: adminEmail,
+      phone: adminPhone,
       password: hashedPassword,
       role: 'admin',
-      name: 'System Administrator',
+      name: adminName,
       updated_at: knex.fn.now()
     });
 
-  console.log('[Knex Seed] Successfully seeded Admin credentials (amirsiraj1995@gmail.com / AEHJSS36) in auth_db');
+  console.log(`[Knex Seed] Successfully seeded Admin credentials (${adminEmail} / ${adminPassword}) in auth_db`);
 }

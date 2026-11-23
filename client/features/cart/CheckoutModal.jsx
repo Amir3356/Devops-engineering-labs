@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useEvents } from '../../context/EventContext';
@@ -77,8 +78,10 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
       await orderService.recordCompletedOrder(orderData);
       setOrderResult({ ...orderData, status: 'Paid' });
       clearCart();
+      toast.success('Order placed successfully!');
       setStep('success');
     } catch (err) {
+      toast.error(err.message || 'Order registration failed');
       setShippingError(err.message || 'Order registration failed');
       setStep('failed');
     }

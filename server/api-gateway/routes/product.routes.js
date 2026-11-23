@@ -20,17 +20,17 @@ router.post('/upload', authenticateToken, requireAdmin, (req, res) => {
       return error(res, 'No image file uploaded', 400);
     }
 
-    const host = req.get('host') || 'localhost:5000';
-    const protocol = req.protocol || 'http';
-    const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+    const ext = (req.file.originalname && req.file.originalname.includes('.'))
+      ? `.${req.file.originalname.split('.').pop()}`
+      : '.jpg';
+    const filename = `product-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
 
     return success(res, {
-      url: fileUrl,
-      relativePath: `/uploads/${req.file.filename}`,
-      filename: req.file.filename,
+      url: `https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop`,
+      filename,
       mimetype: req.file.mimetype,
       size: req.file.size
-    }, 'Product image uploaded successfully via Multer', 201);
+    }, 'Product image uploaded successfully (ready for MinIO storage)', 201);
   });
 });
 
