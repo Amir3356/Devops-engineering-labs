@@ -15,7 +15,7 @@ export async function ensureDatabasesExist() {
   const targetDatabases = new Set();
   let defaultConnStr = '';
 
-  for (const [name, config] of Object.entries(services)) {
+  for (const [, config] of Object.entries(services)) {
     if (typeof config.connection === 'string') {
       try {
         const parsed = new URL(config.connection);

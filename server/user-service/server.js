@@ -36,7 +36,7 @@ app.get('/health', (req, res) => {
 app.use('/api/users', userRoutes);
 
 // Central error handler
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   console.error('[USER SERVICE ERROR]', err);
   res.status(err.status || 500).json({
     success: false,

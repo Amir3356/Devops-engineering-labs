@@ -7,13 +7,21 @@ export async function up(knex) {
   if (!exists) {
     await knex.schema.createTable('users', (table) => {
       table.string('id', 64).primary();
-      table.string('phone', 32).notNullable().unique();
+      table.string('email', 128).unique().nullable();
+      table.string('phone', 32).nullable();
       table.string('password', 255).notNullable();
       table.string('role', 16).notNullable().defaultTo('customer');
       table.string('name', 128).notNullable();
       table.timestamp('created_at', { useTz: true }).defaultTo(knex.fn.now());
       table.timestamp('updated_at', { useTz: true }).defaultTo(knex.fn.now());
     });
+  } else {
+    const hasEmail = await knex.schema.hasColumn('users', 'email');
+    if (!hasEmail) {
+      await knex.schema.table('users', (table) => {
+        table.string('email', 128).unique().nullable();
+      });
+    }
   }
 }
 

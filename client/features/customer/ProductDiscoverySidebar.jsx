@@ -1,4 +1,3 @@
-import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
   Compass,
@@ -6,7 +5,8 @@ import {
   Bell,
   CreditCard,
   LogOut,
-  ShoppingBag
+  ShoppingBag,
+  User
 } from 'lucide-react';
 
 /**
@@ -24,40 +24,18 @@ export default function ProductDiscoverySidebar({
 
   return (
     <aside className="discovery-sidebar">
-      {/* Brand & Sidebar Title */}
-      <div className="discovery-sidebar-header">
-        <div className="discovery-brand-row">
-          <ShoppingBag size={22} className="text-primary" />
-          <span className="discovery-brand-name">NexusCommerce</span>
-        </div>
-        <div className="discovery-header-title">
-          <div className="discovery-icon-wrapper">
-            <Compass size={20} className="text-primary" />
-          </div>
-          <div>
-            <h3>Product Discovery</h3>
-            <span className="discovery-header-subtitle">Customer Portal</span>
-          </div>
+      {/* Brand */}
+      <div className="side-brand">
+        <div className="side-brand-icon"><ShoppingBag size={20} /></div>
+        <div className="side-brand-text">
+          <span className="side-brand-name">NexusCommerce</span>
+          <span className="side-brand-sub">Customer Portal</span>
         </div>
       </div>
 
-      {/* Customer Identity Badge */}
-      {user && (
-        <div className="discovery-user-card">
-          <div className="discovery-user-info">
-            <span className="discovery-user-name">{user.name || 'Valued Customer'}</span>
-            <span className="discovery-user-phone">
-              {user.email || user.phone}
-            </span>
-          </div>
-          <span className="user-role-tag customer">
-            {user.role}
-          </span>
-        </div>
-      )}
-
       {/* Main Customer Workspace Tabs */}
       <div className="discovery-section-nav">
+        <span className="side-section-label">Shopping</span>
         <button
           className={`discovery-nav-tab ${activeTab === 'discovery' ? 'active' : ''}`}
           onClick={() => setActiveTab('discovery')}
@@ -75,6 +53,7 @@ export default function ProductDiscoverySidebar({
           {ordersCount > 0 && <span className="discovery-tab-badge highlight">{ordersCount}</span>}
         </button>
 
+        <span className="side-section-label">Account</span>
         <button
           className={`discovery-nav-tab ${activeTab === 'payments' ? 'active' : ''}`}
           onClick={() => setActiveTab('payments')}
@@ -95,11 +74,21 @@ export default function ProductDiscoverySidebar({
         </button>
       </div>
 
-      {/* Sidebar Footer: Sign Out Action */}
-      <div className="discovery-sidebar-footer">
+      {/* Sidebar Footer: Identity + Sign Out */}
+      <div className="side-footer">
+        {user && (
+          <div className="side-user-card">
+            <div className="side-user-avatar"><User size={18} /></div>
+            <div className="side-user-info">
+              <span className="side-user-name">{user.name || 'Valued Customer'}</span>
+              <span className="side-user-role">{user.role}</span>
+              <span className="side-user-contact">{user.email || user.phone}</span>
+            </div>
+          </div>
+        )}
         <button
           type="button"
-          className="discovery-logout-btn"
+          className="side-signout-btn"
           onClick={logout}
           title="Sign out of your session"
         >

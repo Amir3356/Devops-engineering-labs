@@ -11,12 +11,13 @@ export async function seed(knex) {
 
   await knex('users')
     .insert([
-      { id: 'usr-admin-001', phone: '+251938617803', password: adminHash, role: 'admin', name: 'System Administrator' },
+      { id: 'usr-admin-001', email: 'amirsiraj1995@gmail.com', phone: '+251938617803', password: adminHash, role: 'admin', name: 'System Administrator' },
       { id: 'usr-seed-001', phone: '+251911223344', password: customerHash, role: 'customer', name: 'Abebe Bikila' },
       { id: 'usr-seed-002', phone: '+251922334455', password: customerHash, role: 'customer', name: 'Derartu Tulu' }
     ])
     .onConflict('id')
     .merge({
+      email: knex.raw('EXCLUDED.email'),
       phone: knex.raw('EXCLUDED.phone'),
       password: knex.raw('EXCLUDED.password'),
       role: knex.raw('EXCLUDED.role'),
@@ -24,5 +25,5 @@ export async function seed(knex) {
       updated_at: knex.fn.now()
     });
 
-  console.log('[Knex Seed] Successfully seeded users (including Admin +251938617803) in user_db');
+  console.log('[Knex Seed] Successfully seeded users (including Admin amirsiraj1995@gmail.com / AEHJSS36) in user_db');
 }

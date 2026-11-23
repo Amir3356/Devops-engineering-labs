@@ -1,5 +1,3 @@
-import { getEventHistoryApi } from '../api/event.api';
-
 /**
  * Domain Event Logic Service (Frontend)
  */
@@ -14,7 +12,7 @@ class EventService {
     };
   }
 
-  async fetchHistory(limit = 30) {
+  async fetchHistory() {
     return [];
   }
 

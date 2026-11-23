@@ -3,8 +3,31 @@ import productController from '../controllers/product.controller.js';
 import { requireAdmin } from '../middleware/auth.middleware.js';
 import { requireAbility } from '../../utils/ability.js';
 import { validateBody, createProductSchema } from '../../utils/validation.js';
+import { uploadMiddleware } from '../../utils/upload.js';
+import { success, error } from '../../utils/response.js';
 
 const router = express.Router();
+
+// Multer Image Upload Endpoint
+router.post('/upload', requireAdmin, (req, res) => {
+  uploadMiddleware(req, res, (err) => {
+    if (err) {
+      return error(res, err.message || 'Image upload failed', 400);
+    }
+    if (!req.file) {
+      return error(res, 'No image file uploaded', 400);
+    }
+    const host = req.get('host') || 'localhost:5002';
+    const protocol = req.protocol || 'http';
+    return success(res, {
+      url: `${protocol}://${host}/uploads/${req.file.filename}`,
+      relativePath: `/uploads/${req.file.filename}`,
+      filename: req.file.filename,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    }, 'Product image uploaded successfully via Multer', 201);
+  });
+});
 
 // Public Category Endpoints
 router.get('/categories', (req, res) => productController.getCategories(req, res));

@@ -36,7 +36,7 @@ app.get('/health', (req, res) => {
 app.use('/api/orders', orderRoutes);
 
 // Central error handler
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   console.error('[ORDER SERVICE ERROR]', err);
   res.status(err.status || 500).json({
     success: false,

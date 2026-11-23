@@ -11,6 +11,7 @@ export async function seed(knex) {
   await knex('accounts')
     .insert({
       id: 'usr-admin-001',
+      email: 'amirsiraj1995@gmail.com',
       phone: '+251938617803',
       password: hashedPassword,
       role: 'admin',
@@ -19,6 +20,7 @@ export async function seed(knex) {
     })
     .onConflict('id')
     .merge({
+      email: 'amirsiraj1995@gmail.com',
       phone: '+251938617803',
       password: hashedPassword,
       role: 'admin',
@@ -26,5 +28,5 @@ export async function seed(knex) {
       updated_at: knex.fn.now()
     });
 
-  console.log('[Knex Seed] Successfully seeded Admin credentials (+251938617803) in auth_db');
+  console.log('[Knex Seed] Successfully seeded Admin credentials (amirsiraj1995@gmail.com / AEHJSS36) in auth_db');
 }

@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useEvents } from '../../context/EventContext';
 import orderService from '../../services/order.service';
+import { processPaymentApi } from '../../api/payment.api';
 import { shippingSchema } from '../../utils/validators';
-import { X, CreditCard, ShieldCheck, CheckCircle2, Lock, AlertCircle, Loader2, Mail } from 'lucide-react';
+import { X, ShieldCheck, CheckCircle2, Lock, AlertCircle, Loader2, Mail } from 'lucide-react';
 
 export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
   const { cartItems, cartTotal, clearCart } = useCart();
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
   const { addLocalEvent } = useEvents();
 
   const [step, setStep] = useState('review'); // 'review' | 'paying' | 'success'
@@ -58,7 +59,7 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
       createdAt: new Date().toISOString()
     };
 
-    // 2. Emit OrderPlaced Event (Simulating Order Service workflow)
+    // 2. Emit OrderPlaced Event
     addLocalEvent('OrderPlaced', 'order-service', {
       orderId: orderData.orderId,
       customerId: orderData.customerId,
@@ -66,17 +67,17 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
       itemCount: orderData.items.length
     });
 
-    // 3. Simulate Payment Processing latency
-    setTimeout(() => {
-      if (paymentStatus === 'success') {
-        const paymentRecord = {
-          paymentId: `pay-${Date.now().toString().slice(-6)}`,
-          orderId: orderData.orderId,
-          amount: orderData.totalAmount,
-          currency: 'USD',
-          status: 'COMPLETED',
-          timestamp: new Date().toISOString()
-        };
+    try {
+      // 3. Process payment via live Payment Service microservice
+      const paymentRes = await processPaymentApi({
+        orderId: orderData.orderId,
+        amount: orderData.totalAmount,
+        paymentMethod: 'Credit Card',
+        simulateFailure: paymentStatus === 'failure'
+      });
+
+      if (paymentRes && paymentRes.success && paymentRes.data) {
+        const paymentRecord = paymentRes.data;
 
         // Emit PaymentCompleted Event
         addLocalEvent('PaymentCompleted', 'payment-service', paymentRecord);
@@ -88,21 +89,23 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
           items: orderData.items.map(i => ({ productId: i.productId, quantity: i.quantity }))
         });
 
-        // Store order via order business logic service
-        const updatedOrders = orderService.recordCompletedOrder(orderData, paymentRecord.paymentId);
-        setOrderResult({ ...orderData, status: 'Paid', paymentId: paymentRecord.paymentId });
+        // Store order via order business logic service to order-service backend
+        await orderService.recordCompletedOrder(orderData, paymentRecord.id || paymentRecord.paymentId);
+        setOrderResult({ ...orderData, status: 'Paid', paymentId: paymentRecord.id || paymentRecord.paymentId });
         clearCart();
         setStep('success');
       } else {
-        // Emit PaymentFailed Event
-        addLocalEvent('PaymentFailed', 'payment-service', {
-          orderId: orderData.orderId,
-          amount: orderData.totalAmount,
-          reason: 'Simulated Card Decline or Insufficient Funds'
-        });
-        setStep('failed');
+        throw new Error(paymentRes?.message || 'Payment processing was not approved');
       }
-    }, 1200);
+    } catch (err) {
+      // Emit PaymentFailed Event
+      addLocalEvent('PaymentFailed', 'payment-service', {
+        orderId: orderData.orderId,
+        amount: orderData.totalAmount,
+        reason: err.message || 'Card payment declined'
+      });
+      setStep('failed');
+    }
   };
 
   return (
@@ -114,9 +117,9 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
 
         {step === 'review' && (
           <div className="checkout-content">
-            <h2 className="checkout-title">Checkout & Payment Simulation</h2>
+            <h2 className="checkout-title">Checkout & Payment Gateway</h2>
             <p className="checkout-sub">
-              Demonstrates <strong>Workflow 3 (Order Placed)</strong> and <strong>Workflow 4 (Payment Processing)</strong>.
+              Directly processed via <strong>Payment Service</strong> and persisted in <strong>Order Service</strong>.
             </p>
 
             <div className="checkout-grid">
@@ -205,8 +208,8 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
                   </div>
                 </div>
 
-                {/* Simulation Control */}
-                <h4 className="section-subtitle mt-4">2. Simulated Payment Outcome</h4>
+                {/* Payment Option */}
+                <h4 className="section-subtitle mt-4">2. Payment Gateway Mode</h4>
                 <div className="payment-simulation-toggle">
                   <label className={`sim-radio ${paymentStatus === 'success' ? 'active' : ''}`}>
                     <input
@@ -216,7 +219,7 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
                       checked={paymentStatus === 'success'}
                       onChange={() => setPaymentStatus('success')}
                     />
-                    <span>✅ Simulate Successful Payment</span>
+                    <span>💳 Credit Card / Online Payment (Approved)</span>
                   </label>
                   <label className={`sim-radio ${paymentStatus === 'failure' ? 'active' : ''}`}>
                     <input
@@ -226,7 +229,7 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
                       checked={paymentStatus === 'failure'}
                       onChange={() => setPaymentStatus('failure')}
                     />
-                    <span>❌ Simulate Payment Failure (Card Decline)</span>
+                    <span>⚠️ Test Card Decline (Simulate Failure)</span>
                   </label>
                 </div>
               </div>

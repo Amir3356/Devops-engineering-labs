@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { loginSchema, registerSchema } from '../../utils/validators';
 import { useNavigate } from 'react-router-dom';
@@ -11,8 +11,59 @@ import {
   ShieldCheck,
   LogOut,
   LayoutDashboard,
-  Compass
+  Compass,
+  ShoppingBag,
+  Activity,
+  Eye,
+  EyeOff,
+  ArrowRight
 } from 'lucide-react';
+
+const HIGHLIGHTS = [
+  'Secure Checkout with Simulated Payments',
+  'Live Order Tracking & Notifications',
+  'Event Trail of Every Transaction'
+];
+
+function AuthShell({ children }) {
+  return (
+    <div className="auth-split-card">
+      <section className="auth-brand-panel">
+        <div className="auth-brand-top">
+          <div className="auth-brand-row">
+            <div className="auth-brand-icon"><ShoppingBag size={22} /></div>
+            <span className="auth-brand-name">NexusCommerce</span>
+          </div>
+          <span className="auth-brand-pill">
+            <Activity size={13} /> Microservices · Event-Driven Commerce
+          </span>
+        </div>
+
+        <div className="auth-brand-body">
+          <h1>Shop, Order &amp; Track in Real Time</h1>
+          <p>
+            Browse the catalog, check out securely and follow every order as it moves
+            through payment, inventory and delivery — customers and administrators in one place.
+          </p>
+          <ul className="auth-highlights">
+            {HIGHLIGHTS.map(item => (
+              <li key={item}><CheckCircle2 size={17} /> {item}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="auth-brand-footer">
+          <span>© 2026 NexusCommerce Platform</span>
+          <span className="auth-brand-footer-badge"><ShieldCheck size={13} /> RBAC Protected</span>
+        </div>
+      </section>
+
+      <section className="auth-form-panel">
+        <div className="auth-form-inner">{children}</div>
+      </section>
+    </div>
+  );
+}
 
 export default function AuthCard() {
   const { user, isAuthenticated, isAdmin, login, register, logout } = useAuth();
@@ -22,6 +73,7 @@ export default function AuthCard() {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Form State: Email-based authentication
   const [formData, setFormData] = useState({
@@ -83,16 +135,22 @@ export default function AuthCard() {
     }
   };
 
+  const switchMode = (loginMode) => {
+    setIsLoginMode(loginMode);
+    setErrorMsg('');
+    setSuccessMsg('');
+  };
+
   // If already authenticated, display current session status
   if (isAuthenticated && user) {
     return (
-      <div className="auth-page-card authenticated-session-card">
+      <AuthShell>
         <div className="auth-card-header">
           <div className="auth-badge-icon">
-            <ShieldCheck size={28} className="text-emerald" />
+            <ShieldCheck size={26} className="text-emerald" />
           </div>
-          <h2>Authenticated Session</h2>
-          <p className="auth-card-subtitle">You are signed in to the platform</p>
+          <h2>You're Signed In</h2>
+          <p className="auth-card-subtitle">Your session is active on the platform</p>
         </div>
 
         <div className="session-user-details">
@@ -115,18 +173,12 @@ export default function AuthCard() {
 
         <div className="session-actions">
           {isAdmin ? (
-            <button
-              className="auth-submit-btn"
-              onClick={() => navigate('/admin/dashboard')}
-            >
+            <button className="auth-submit-btn" onClick={() => navigate('/admin/dashboard')}>
               <LayoutDashboard size={18} />
               Open Admin Dashboard
             </button>
           ) : (
-            <button
-              className="auth-submit-btn"
-              onClick={() => navigate('/dashboard')}
-            >
+            <button className="auth-submit-btn" onClick={() => navigate('/dashboard')}>
               <Compass size={18} />
               Open Customer Dashboard
             </button>
@@ -137,34 +189,18 @@ export default function AuthCard() {
             Sign Out
           </button>
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
-  // Not authenticated: Display Sign In / Register Card
+  // Not authenticated: Display Sign In / Register form
   return (
-    <div className="auth-page-card">
+    <AuthShell>
       <div className="auth-card-header">
-        <h2>Welcome to NexusCommerce</h2>
-        <p className="auth-card-subtitle">Sign in with your email or create an account</p>
-      </div>
-
-      {/* Tab Switcher */}
-      <div className="auth-tab-row">
-        <button
-          type="button"
-          className={`auth-tab-btn ${isLoginMode ? 'active' : ''}`}
-          onClick={() => { setIsLoginMode(true); setErrorMsg(''); }}
-        >
-          Sign In
-        </button>
-        <button
-          type="button"
-          className={`auth-tab-btn ${!isLoginMode ? 'active' : ''}`}
-          onClick={() => { setIsLoginMode(false); setErrorMsg(''); }}
-        >
-          Register Account
-        </button>
+        <h2>{isLoginMode ? 'Welcome Back' : 'Create Account'}</h2>
+        <p className="auth-card-subtitle">
+          {isLoginMode ? 'Sign in to access your NexusCommerce portal' : 'Register a customer account to start shopping'}
+        </p>
       </div>
 
       {errorMsg && (
@@ -181,31 +217,32 @@ export default function AuthCard() {
         </div>
       )}
 
-      {/* Email-based Authentication Form */}
       <form onSubmit={handleSubmit} className="auth-form">
         {!isLoginMode && (
           <div className="form-group">
-            <label>Full Name</label>
+            <label htmlFor="auth-name">Full Name</label>
             <div className="input-with-icon">
               <User size={16} />
               <input
+                id="auth-name"
                 type="text"
                 name="name"
                 placeholder="e.g. Abebe Bikila"
                 value={formData.name}
                 onChange={handleChange}
                 required
+                autoComplete="name"
               />
             </div>
           </div>
         )}
 
-        {/* Email Address Field */}
         <div className="form-group">
-          <label>Email Address</label>
+          <label htmlFor="auth-email">Email Address</label>
           <div className="input-with-icon">
             <Mail size={16} />
             <input
+              id="auth-email"
               type="email"
               name="email"
               placeholder="name@example.com"
@@ -218,30 +255,40 @@ export default function AuthCard() {
         </div>
 
         <div className="form-group">
-          <label>Password</label>
+          <label htmlFor="auth-password">Password</label>
           <div className="input-with-icon">
             <Lock size={16} />
             <input
-              type="password"
+              id="auth-password"
+              type={showPassword ? 'text' : 'password'}
               name="password"
-              placeholder="••••••••"
+              placeholder="Enter your password"
               value={formData.password}
               onChange={handleChange}
               required
               autoComplete={isLoginMode ? 'current-password' : 'new-password'}
             />
+            <button
+              type="button"
+              className="input-icon-btn"
+              onClick={() => setShowPassword(v => !v)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+            </button>
           </div>
         </div>
 
         {!isLoginMode && (
           <div className="form-group">
-            <label>Confirm Password</label>
+            <label htmlFor="auth-confirm">Confirm Password</label>
             <div className="input-with-icon">
               <Lock size={16} />
               <input
-                type="password"
+                id="auth-confirm"
+                type={showPassword ? 'text' : 'password'}
                 name="confirmPassword"
-                placeholder="••••••••"
+                placeholder="Re-enter your password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 required
@@ -251,17 +298,24 @@ export default function AuthCard() {
           </div>
         )}
 
-        <button
-          type="submit"
-          className="auth-submit-btn"
-          disabled={isLoading}
-        >
+        <button type="submit" className="auth-submit-btn" disabled={isLoading}>
           {isLoading
             ? (isLoginMode ? 'Signing in...' : 'Creating account...')
-            : (isLoginMode ? 'Sign In to Account' : 'Create Customer Account')
-          }
+            : (isLoginMode ? 'Sign In' : 'Create Account')}
+          {!isLoading && <ArrowRight size={17} />}
         </button>
       </form>
-    </div>
+
+      <p className="auth-switch-text">
+        {isLoginMode ? "Don't have an account? " : 'Already have an account? '}
+        <button type="button" className="auth-switch-link" onClick={() => switchMode(!isLoginMode)}>
+          {isLoginMode ? 'Sign up' : 'Sign in'}
+        </button>
+      </p>
+
+      <p className="auth-rbac-note">
+        <ShieldCheck size={14} /> Role-Based Access Control (RBAC) Protected
+      </p>
+    </AuthShell>
   );
 }

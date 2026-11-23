@@ -7,6 +7,7 @@ import config from './config/index.js';
 import routes from './routes/index.js';
 import { success } from '../utils/response.js';
 import { requestLogger, rateLimiter, notFoundHandler, errorHandler } from './middleware/index.js';
+import { uploadsDir } from '../utils/upload.js';
 
 const app = express();
 
@@ -41,6 +42,9 @@ app.get('/health', async (req, res) => {
     services: serviceStatuses
   }, 'API Gateway is operational');
 });
+
+// 5.1 Serve Uploaded Media Statically (Multer Destination)
+app.use('/uploads', express.static(uploadsDir));
 
 // 6. Mount Central Microservice Routes
 app.use(routes);

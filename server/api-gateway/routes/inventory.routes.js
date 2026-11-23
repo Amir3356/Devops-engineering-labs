@@ -11,6 +11,7 @@ const proxy = proxyRequest(config.SERVICES.INVENTORY);
 // ==========================================
 router.get('/low-stock', authenticateToken, requireAdmin, proxy);
 router.put('/stock/:productId', authenticateToken, requireAdmin, proxy);
+router.post('/replenish', authenticateToken, requireAdmin, proxy);
 router.use('/', optionalAuth, proxy);
 
 export default router;

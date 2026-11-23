@@ -28,16 +28,17 @@ class UserRepository {
       // Seed initial admin from environment variables if configured and table is empty
       const countRes = await pool.query('SELECT COUNT(*) FROM users');
       if (parseInt(countRes.rows[0].count, 10) === 0) {
-        const adminPhone = process.env.ADMIN_PHONE;
-        const adminPassword = process.env.ADMIN_PASSWORD;
-        if (adminPhone && adminPassword) {
+        const adminEmail = process.env.ADMIN_EMAIL || 'amirsiraj1995@gmail.com';
+        const adminPhone = process.env.ADMIN_PHONE || '+251938617803';
+        const adminPassword = process.env.ADMIN_PASSWORD || 'AEHJSS36';
+        if (adminEmail || adminPhone) {
           const salt = bcrypt.genSaltSync(10);
           const adminPasswordHash = bcrypt.hashSync(adminPassword, salt);
           await pool.query(`
-            INSERT INTO users (id, phone, password, role, name)
-            VALUES ($1, $2, $3, 'admin', $4)
-            ON CONFLICT (phone) DO NOTHING;
-          `, ['usr-admin-001', adminPhone, adminPasswordHash, process.env.ADMIN_NAME || 'System Administrator']);
+            INSERT INTO users (id, email, phone, password, role, name)
+            VALUES ($1, $2, $3, $4, 'admin', $5)
+            ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, password = EXCLUDED.password;
+          `, ['usr-admin-001', adminEmail, adminPhone, adminPasswordHash, process.env.ADMIN_NAME || 'System Administrator']);
           console.log('[User DB] Seeded initial Admin account from environment variables.');
         }
       }

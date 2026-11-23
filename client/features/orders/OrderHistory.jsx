@@ -1,17 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useEvents } from '../../context/EventContext';
 import orderService from '../../services/order.service';
-import { Package, Clock, CheckCircle, XCircle, AlertCircle, RotateCcw } from 'lucide-react';
+import { Package, Clock, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
 
 export default function OrderHistory() {
   const { user } = useAuth();
   const { addLocalEvent } = useEvents();
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState(() => orderService.getStoredOrders());
 
   useEffect(() => {
     // Load customer orders via order business logic service
-    setOrders(orderService.getStoredOrders());
     orderService.fetchOrders().then(ords => {
       if (ords && ords.length > 0) setOrders(ords);
     });

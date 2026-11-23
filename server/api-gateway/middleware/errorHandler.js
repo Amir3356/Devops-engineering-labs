@@ -3,7 +3,7 @@ import { error } from '../../utils/response.js';
 /**
  * Centralized error handling middleware for API Gateway
  */
-const errorHandler = (err, req, res, next) => {
+const errorHandler = (err, req, res, _next) => {
   console.error('\x1b[31m[API GATEWAY ERROR]\x1b[0m', err.message || err);
 
   const statusCode = err.status || err.statusCode || 500;

@@ -32,7 +32,7 @@ export const createProductSchema = z.object({
   price: z.coerce.number().positive('Price must be greater than 0'),
   stock: z.coerce.number().int().nonnegative('Stock must be >= 0'),
   description: z.string().optional(),
-  image: z.string().url('Invalid image URL').optional().or(z.literal(''))
+  image: z.string().optional().or(z.literal(''))
 });
 
 // ==========================================

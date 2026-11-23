@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useCart } from '../../context/CartContext';
 import { X, ShoppingCart, ShieldCheck, Check, AlertTriangle, Truck } from 'lucide-react';
 
@@ -34,8 +34,8 @@ export default function ProductDetailModal({ product, onClose }) {
             <h2 className="detail-title">{product.name}</h2>
             <div className="detail-rating-row">
               <span className="stars">★★★★★</span>
-              <span className="score">{product.rating}</span>
-              <span className="reviews">(148 customer reviews)</span>
+              <span className="score">{product.rating || '5.0'}</span>
+              <span className="reviews">({product.reviewsCount || 'Verified Stock'})</span>
             </div>
 
             <div className="detail-price-box">

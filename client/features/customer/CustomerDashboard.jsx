@@ -1,121 +1,77 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { useState, useEffect } from 'react';
 import { useCart } from '../../context/CartContext';
-import { useEvents } from '../../context/EventContext';
 import { getProductsApi } from '../../api/product.api';
 import { getNotificationsApi, markNotificationAsReadApi } from '../../api/notification.api';
 import { getPaymentHistoryApi } from '../../api/payment.api';
 import orderService from '../../services/order.service';
-import { INITIAL_PRODUCTS } from '../products/HomeCatalog';
 import ProductDiscoverySidebar from './ProductDiscoverySidebar';
 import OrderHistory from '../orders/OrderHistory';
 import CustomerNotifications from '../notifications/CustomerNotifications';
 import CustomerPayments from '../payments/CustomerPayments';
 
-export const INITIAL_PAYMENTS = [
-  {
-    id: 'pay-txn-88192',
-    paymentId: 'pay-txn-88192',
-    orderId: 'ORD-2026-9041',
-    amount: 199.99,
-    currency: 'USD',
-    paymentMethod: 'Online Payment',
-    status: 'Success',
-    transactionRef: 'TXN-9041-SETTLED',
-    createdAt: new Date(Date.now() - 86400000).toISOString()
-  },
-  {
-    id: 'pay-txn-77341',
-    paymentId: 'pay-txn-77341',
-    orderId: 'ORD-2026-8712',
-    amount: 89.50,
-    currency: 'USD',
-    paymentMethod: 'Online Payment',
-    status: 'Success',
-    transactionRef: 'TXN-8712-VERIFIED',
-    createdAt: new Date(Date.now() - 259200000).toISOString()
-  }
-];
 import {
-  Compass,
   ShoppingCart,
   CheckCircle,
   AlertTriangle,
   Package,
-  Star,
-  Check
+  Check,
+  Loader2
 } from 'lucide-react';
 
 /**
  * CustomerDashboard
  * RBAC Protected Workspace for Customers.
- * Featuring the Product Discovery Sidebar, product catalog,
- * and integrated order management.
+ * Displays live microservices data: products, orders, payments, notifications.
  */
 export default function CustomerDashboard() {
-  const { user } = useAuth();
   const { addToCart, openCart, cartCount } = useCart();
-  const { addLocalEvent } = useEvents();
 
-  // State
-  const [products, setProducts] = useState(INITIAL_PRODUCTS);
+  // State initialized purely from live data
+  const [products, setProducts] = useState([]);
   const [activeTab, setActiveTab] = useState('discovery'); // 'discovery' | 'orders' | 'payments' | 'notifications'
+  const [isLoading, setIsLoading] = useState(true);
 
   // Added-to-cart alert state
   const [addedItemName, setAddedItemName] = useState('');
   const [addedProductId, setAddedProductId] = useState(null);
   const [orders, setOrders] = useState([]);
-  const [payments, setPayments] = useState(INITIAL_PAYMENTS);
-  const [notifications, setNotifications] = useState([
-    {
-      id: 'notif-welcome-01',
-      title: 'Welcome to Citizen Portal',
-      message: 'Your citizen identity and RBAC profile are successfully verified.',
-      type: 'system',
-      isRead: false,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'notif-welcome-02',
-      title: 'Catalog Updates Available',
-      message: 'New electronic products and certified gadgets have arrived in the catalog.',
-      type: 'info',
-      isRead: false,
-      createdAt: new Date(Date.now() - 3600000).toISOString()
-    }
-  ]);
+  const [payments, setPayments] = useState([]);
+  const [notifications, setNotifications] = useState([]);
 
   // Fetch live products, customer orders & notifications
   useEffect(() => {
-    getProductsApi()
-      .then((res) => {
-        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
-          setProducts(res.data);
-        }
-      })
-      .catch(() => {
-        // Graceful fallback to initial products
-      });
+    Promise.allSettled([
+      getProductsApi(),
+      orderService.fetchOrders(),
+      getNotificationsApi(),
+      getPaymentHistoryApi()
+    ]).then(([prodRes, ordsRes, notifRes, payRes]) => {
+      if (prodRes.status === 'fulfilled' && prodRes.value?.success && Array.isArray(prodRes.value.data)) {
+        setProducts(prodRes.value.data);
+      } else {
+        setProducts([]);
+      }
 
-    orderService.fetchOrders().then((ords) => {
-      if (ords && ords.length > 0) setOrders(ords);
+      if (ordsRes.status === 'fulfilled' && Array.isArray(ordsRes.value)) {
+        setOrders(ordsRes.value);
+      } else {
+        setOrders([]);
+      }
+
+      if (notifRes.status === 'fulfilled' && notifRes.value?.success && Array.isArray(notifRes.value.data)) {
+        setNotifications(notifRes.value.data);
+      } else {
+        setNotifications([]);
+      }
+
+      if (payRes.status === 'fulfilled' && payRes.value?.success && Array.isArray(payRes.value.data)) {
+        setPayments(payRes.value.data);
+      } else {
+        setPayments([]);
+      }
+    }).finally(() => {
+      setIsLoading(false);
     });
-
-    getNotificationsApi()
-      .then((res) => {
-        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
-          setNotifications(res.data);
-        }
-      })
-      .catch(() => {});
-
-    getPaymentHistoryApi()
-      .then((res) => {
-        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
-          setPayments(res.data);
-        }
-      })
-      .catch(() => {});
   }, []);
 
   const handleMarkNotificationRead = async (id) => {
@@ -124,7 +80,9 @@ export default function CustomerDashboard() {
     );
     try {
       await markNotificationAsReadApi(id);
-    } catch {}
+    } catch {
+      // Ignored
+    }
   };
 
   const handleMarkAllNotificationsRead = async () => {
@@ -146,20 +104,12 @@ export default function CustomerDashboard() {
       setAddedProductId(null);
     }, 2500);
 
-    // Open Cart Drawer so the customer immediately sees their cart
+    // Open Cart Drawer so the customer immediately sees their updated cart
     openCart();
-
-    // Emit CartItemAdded Event
-    addLocalEvent('CartItemAdded', 'cart-service', {
-      customerId: user?.id,
-      productId: prod.id,
-      name: prod.name,
-      price: prod.price
-    });
   };
 
   return (
-    <div className="customer-portal-layout">
+    <div className="discovery-layout">
       {/* Product Discovery Sidebar */}
       <ProductDiscoverySidebar
         activeTab={activeTab}
@@ -169,32 +119,32 @@ export default function CustomerDashboard() {
       />
 
       {/* Main Workspace Area */}
-      <main className="customer-main-panel">
-        {/* Added-to-Cart Toast Alert */}
+      <main className="discovery-main">
+        {/* Added to Cart Toast Notification */}
         {addedItemName && (
-          <div className="cart-toast-alert">
-            <div className="cart-toast-msg">
-              <CheckCircle size={18} className="text-emerald" />
-              <span>Added <strong>{addedItemName}</strong> to your shopping cart!</span>
+          <div className="added-to-cart-toast" role="status" aria-live="polite">
+            <CheckCircle size={18} className="toast-icon" />
+            <div className="toast-message">
+              <strong>{addedItemName}</strong> added to cart!
             </div>
             <button
               type="button"
-              className="btn-toast-view-cart"
+              className="toast-action-btn"
               onClick={openCart}
             >
-              Pay →
+              View Cart ({cartCount})
             </button>
           </div>
         )}
 
         {/* TAB 1: PRODUCT DISCOVERY */}
         {activeTab === 'discovery' && (
-          <div className="customer-discovery-view">
-            {/* Products Toolbar */}
-            <div className="discovery-results-toolbar">
-              <div className="discovery-toolbar-left">
-                <h2 className="discovery-results-title">
-                  Available Products
+          <div className="discovery-content">
+            {/* Header */}
+            <div className="discovery-header">
+              <div className="discovery-header-top">
+                <h2 className="discovery-title">
+                  All Catalog Products
                 </h2>
                 <span className="discovery-results-count">
                   {products.length} {products.length === 1 ? 'item' : 'items'}
@@ -202,8 +152,13 @@ export default function CustomerDashboard() {
               </div>
             </div>
 
-            {/* Product Cards Grid */}
-            {products.length > 0 ? (
+            {/* Product Cards Grid or Loading / Empty state */}
+            {isLoading ? (
+              <div className="discovery-loading-state" style={{ textAlign: 'center', padding: '60px 20px' }}>
+                <Loader2 size={36} className="spinner" style={{ animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
+                <p style={{ color: 'var(--text-muted, #94a3b8)' }}>Loading catalog from Product Service...</p>
+              </div>
+            ) : products.length > 0 ? (
               <div className="discovery-product-grid">
                 {products.map((prod) => {
                   const isLowStock = prod.stock > 0 && prod.stock <= 5;
@@ -212,7 +167,7 @@ export default function CustomerDashboard() {
                   return (
                     <div key={prod.id} className="product-card">
                       <div className="product-card-image-wrap">
-                        <img src={prod.image} alt={prod.name} className="product-card-img" />
+                        <img src={prod.image || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80'} alt={prod.name} className="product-card-img" />
                         <span className="product-card-category">{prod.category}</span>
                         {isLowStock && (
                           <span className="product-badge-low-stock">
@@ -226,7 +181,7 @@ export default function CustomerDashboard() {
 
                       <div className="product-card-details">
                         <div className="product-card-rating">
-                          ★ {prod.rating || 4.8}
+                          ★ {prod.rating || '5.0'}
                         </div>
                         <h3 className="product-card-title" title={prod.name}>
                           {prod.name}

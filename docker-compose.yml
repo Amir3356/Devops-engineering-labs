@@ -88,6 +88,8 @@ services:
       DB_POOL_CONN_TIMEOUT: 5000
     ports:
       - "5002:5002"
+    volumes:
+      - ./server/uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -211,6 +213,8 @@ services:
       NOTIFICATION_SERVICE_URL: http://notification-service:5007
     ports:
       - "5000:5000"
+    volumes:
+      - ./server/uploads:/app/uploads
     depends_on:
       - auth-service
       - user-service

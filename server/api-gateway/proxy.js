@@ -5,7 +5,7 @@ import { error } from '../utils/response.js';
  * Uses native fetch (Node.js 18+).
  */
 const proxyRequest = (targetBaseUrl) => {
-  return async (req, res, next) => {
+  return async (req, res) => {
     try {
       const url = `${targetBaseUrl}${req.originalUrl}`;
       const headers = {

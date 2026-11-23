@@ -1,103 +1,53 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useCart } from '../../context/CartContext';
-import { Search, SlidersHorizontal, ShoppingCart, Eye, Sparkles, AlertTriangle } from 'lucide-react';
-import { getProductsApi } from '../../api/product.api';
-
-export const INITIAL_PRODUCTS = [
-  {
-    id: 'prod-001',
-    name: 'AeroPulse Wireless Noise-Cancelling Headphones',
-    category: 'Audio',
-    price: 249.99,
-    stock: 18,
-    rating: 4.8,
-    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80',
-    description: 'High-fidelity acoustic drivers with 40-hour battery life and adaptive hybrid noise cancellation.'
-  },
-  {
-    id: 'prod-002',
-    name: 'Quantum Lumina Mechanical Keyboard (RGB)',
-    category: 'Electronics',
-    price: 139.50,
-    stock: 4, // Low stock demo!
-    rating: 4.9,
-    image: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=600&auto=format&fit=crop&q=80',
-    description: 'Aircraft-grade anodized aluminum frame with hot-swappable linear mechanical switches and per-key RGB backlighting.'
-  },
-  {
-    id: 'prod-003',
-    name: 'Titan Pro Ultra Smartwatch',
-    category: 'Wearables',
-    price: 329.00,
-    stock: 12,
-    rating: 4.7,
-    image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80',
-    description: 'Sapphire glass display with continuous ECG tracking, dual-frequency GPS, and 100m water resistance.'
-  },
-  {
-    id: 'prod-004',
-    name: 'OpticGlide Ergonomic Wireless Mouse',
-    category: 'Electronics',
-    price: 79.99,
-    stock: 25,
-    rating: 4.6,
-    image: 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=600&auto=format&fit=crop&q=80',
-    description: 'Sculpted ergonomic grip with hyper-fast MagSpeed scrolling and 8,000 DPI track-on-glass sensor.'
-  },
-  {
-    id: 'prod-005',
-    name: 'SonicSphere 360 Portable Bluetooth Speaker',
-    category: 'Audio',
-    price: 119.00,
-    stock: 3, // Low stock demo!
-    rating: 4.5,
-    image: 'https://images.unsplash.com/photo-1545454675-3531b543be5d?w=600&auto=format&fit=crop&q=80',
-    description: 'Deep spatial 360-degree acoustic projection with IPX7 waterproof enclosure and 15-hour playtime.'
-  },
-  {
-    id: 'prod-006',
-    name: 'HyperCharge 65W GaN Fast Charger',
-    category: 'Accessories',
-    price: 49.99,
-    stock: 40,
-    rating: 4.8,
-    image: 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=600&auto=format&fit=crop&q=80',
-    description: 'Next-generation Gallium Nitride (GaN) fast charger with dual USB-C Power Delivery ports.'
-  }
-];
-
-export const CATEGORIES = ['All', 'Audio', 'Electronics', 'Wearables', 'Accessories'];
+import { Search, SlidersHorizontal, ShoppingCart, Eye, Sparkles, AlertTriangle, Package, Loader2 } from 'lucide-react';
+import { getProductsApi, getCategoriesApi } from '../../api/product.api';
 
 export default function HomeCatalog({ onSelectProduct }) {
   const { addToCart } = useCart();
-  const [products, setProducts] = useState(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState(['All']);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('featured');
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch live products from backend via API Gateway
+  // Fetch live products and categories from backend via API Gateway
   useEffect(() => {
-    getProductsApi()
-      .then(res => {
-        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
-          setProducts(res.data);
-        }
-      })
-      .catch(err => {
-        console.warn('[HomeCatalog] Using fallback products catalog:', err.message);
-      });
+    Promise.all([
+      getProductsApi().catch(() => ({ data: [] })),
+      getCategoriesApi().catch(() => ({ data: [] }))
+    ]).then(([prodRes, catRes]) => {
+      if (prodRes && prodRes.success && Array.isArray(prodRes.data)) {
+        setProducts(prodRes.data);
+      } else {
+        setProducts([]);
+      }
+
+      if (catRes && catRes.success && Array.isArray(catRes.data)) {
+        const catNames = catRes.data.map(c => c.name);
+        setCategories(['All', ...catNames]);
+      }
+    }).finally(() => {
+      setIsLoading(false);
+    });
   }, []);
 
   // Filter & Sort Logic
   const filteredProducts = products.filter(product => {
     const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          product.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (product.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (product.description || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   }).sort((a, b) => {
-    if (sortBy === 'price-low') return a.price - b.price;
-    if (sortBy === 'price-high') return b.price - a.price;
-    if (sortBy === 'rating') return b.rating - a.rating;
+    const priceA = Number(a.price) || 0;
+    const priceB = Number(b.price) || 0;
+    const ratingA = Number(a.rating) || 0;
+    const ratingB = Number(b.rating) || 0;
+
+    if (sortBy === 'price-low') return priceA - priceB;
+    if (sortBy === 'price-high') return priceB - priceA;
+    if (sortBy === 'rating') return ratingB - ratingA;
     return 0; // featured
   });
 
@@ -130,7 +80,7 @@ export default function HomeCatalog({ onSelectProduct }) {
         </div>
 
         <div className="category-chips">
-          {CATEGORIES.map(cat => (
+          {categories.map(cat => (
             <button
               key={cat}
               className={`category-chip ${selectedCategory === cat ? 'active' : ''}`}
@@ -152,57 +102,79 @@ export default function HomeCatalog({ onSelectProduct }) {
         </div>
       </div>
 
-      {/* Product Grid */}
-      <div className="product-grid">
-        {filteredProducts.map(product => {
-          const isLowStock = product.stock <= 5;
-          return (
-            <div key={product.id} className="product-card">
-              <div className="product-card-image-wrap" onClick={() => onSelectProduct(product)}>
-                <img src={product.image} alt={product.name} className="product-card-img" />
-                <span className="product-card-category">{product.category}</span>
-                {isLowStock && (
-                  <span className="product-badge-low-stock">
-                    <AlertTriangle size={12} /> Only {product.stock} left!
-                  </span>
-                )}
-              </div>
+      {/* Loading & Empty States */}
+      {isLoading ? (
+        <div className="catalog-loading-state" style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <Loader2 size={36} className="spinner" style={{ animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
+          <p style={{ color: 'var(--text-muted, #94a3b8)' }}>Loading live products from Product Service...</p>
+        </div>
+      ) : filteredProducts.length === 0 ? (
+        <div className="discovery-empty-state" style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div className="empty-icon-circle" style={{ margin: '0 auto 16px' }}>
+            <Package size={40} />
+          </div>
+          <h3>No products found</h3>
+          <p style={{ color: 'var(--text-muted, #94a3b8)' }}>
+            {searchQuery || selectedCategory !== 'All'
+              ? 'No products match your search or filter criteria.'
+              : 'There are currently no products in the catalog.'}
+          </p>
+        </div>
+      ) : (
+        /* Product Grid */
+        <div className="product-grid">
+          {filteredProducts.map(product => {
+            const isLowStock = product.stock <= 5;
+            const price = Number(product.price) || 0;
+            return (
+              <div key={product.id} className="product-card">
+                <div className="product-card-image-wrap" onClick={() => onSelectProduct(product)}>
+                  <img src={product.image || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80'} alt={product.name} className="product-card-img" />
+                  <span className="product-card-category">{product.category}</span>
+                  {isLowStock && (
+                    <span className="product-badge-low-stock">
+                      <AlertTriangle size={12} /> Only {product.stock} left!
+                    </span>
+                  )}
+                </div>
 
-              <div className="product-card-details">
-                <div className="product-card-rating">★ {product.rating} / 5.0</div>
-                <h3 className="product-card-title" onClick={() => onSelectProduct(product)}>
-                  {product.name}
-                </h3>
-                <p className="product-card-desc">{product.description}</p>
+                <div className="product-card-details">
+                  <div className="product-card-rating">★ {product.rating || '5.0'} / 5.0</div>
+                  <h3 className="product-card-title" onClick={() => onSelectProduct(product)}>
+                    {product.name}
+                  </h3>
+                  <p className="product-card-desc">{product.description}</p>
 
-                <div className="product-card-footer">
-                  <div className="product-price">
-                    <span className="currency">$</span>
-                    <span className="amount">{product.price.toFixed(2)}</span>
-                  </div>
+                  <div className="product-card-footer">
+                    <div className="product-price">
+                      <span className="currency">$</span>
+                      <span className="amount">{price.toFixed(2)}</span>
+                    </div>
 
-                  <div className="product-card-actions">
-                    <button
-                      className="btn-quick-view"
-                      onClick={() => onSelectProduct(product)}
-                      title="View Details"
-                    >
-                      <Eye size={16} />
-                    </button>
-                    <button
-                      className="btn-add-cart"
-                      onClick={() => addToCart(product, 1)}
-                    >
-                      <ShoppingCart size={16} />
-                      Add to Cart
-                    </button>
+                    <div className="product-card-actions">
+                      <button
+                        className="btn-quick-view"
+                        onClick={() => onSelectProduct(product)}
+                        title="View Details"
+                      >
+                        <Eye size={16} />
+                      </button>
+                      <button
+                        className="btn-add-cart"
+                        onClick={() => addToCart(product, 1)}
+                        disabled={product.stock <= 0}
+                      >
+                        <ShoppingCart size={16} />
+                        {product.stock <= 0 ? 'Out of Stock' : 'Add to Cart'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

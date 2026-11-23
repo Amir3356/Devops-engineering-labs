@@ -6,12 +6,16 @@ import { corsOptions } from '../utils/cors.js';
 import config from './config/index.js';
 import productRoutes from './routes/product.routes.js';
 import { success } from '../utils/response.js';
+import { uploadsDir } from '../utils/upload.js';
 
 const app = express();
 
 // Enable CORS using the official 'cors' package library
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Serve static uploads
+app.use('/uploads', express.static(uploadsDir));
 
 // Request logger
 app.use((req, res, next) => {
@@ -36,7 +40,7 @@ app.get('/health', (req, res) => {
 app.use('/api/products', productRoutes);
 
 // Central error handler
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   console.error('[PRODUCT SERVICE ERROR]', err);
   res.status(err.status || 500).json({
     success: false,

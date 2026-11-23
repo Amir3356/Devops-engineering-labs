@@ -1,15 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Wallet,
   CheckCircle,
   AlertCircle,
   Clock,
-  DollarSign,
-  FileText,
-  ShieldCheck,
   X,
-  Receipt,
-  Download
+  Receipt
 } from 'lucide-react';
 
 /**

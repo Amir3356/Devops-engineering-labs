@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AbilityProvider } from './context/AbilityContext';
@@ -7,25 +7,25 @@ import { EventProvider } from './context/EventContext';
 import Navbar from './components/Navbar';
 import EventStreamDrawer from './components/EventStreamDrawer';
 import { AppRoutes } from './routes';
-import { AuthModal } from './features/auth';
 import { CartDrawer, CheckoutModal } from './features/cart';
-import { ProductDetailModal } from './features/products';
 import './App.css';
 
 function MainApp() {
   const { user, isAdmin } = useAuth();
-  const { isCartOpen, setIsCartOpen, openCart, closeCart } = useCart();
+  const { isCartOpen, closeCart } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null);
 
   const isCustomerDashboard = location.pathname.startsWith('/dashboard');
+  const isAdminPortal = location.pathname.startsWith('/admin');
+  const isAuthPage = location.pathname === '/';
+  // Sidebar portals and the split-panel auth page render full-bleed without the top navbar/footer
+  const isFullBleed = isCustomerDashboard || isAdminPortal || isAuthPage;
 
   // Auto-redirect if role changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (isAdmin && !location.pathname.startsWith('/admin')) {
       navigate('/admin/dashboard');
     } else if (!isAdmin && location.pathname.startsWith('/admin')) {
@@ -36,19 +36,15 @@ function MainApp() {
   return (
     <div className="app-shell">
       {/* Top Header Navigation - Excluded on Customer RBAC Dashboard */}
-      {!isCustomerDashboard && (
-        <Navbar
-          onOpenAuth={() => setIsAuthOpen(true)}
-          onOpenCart={openCart}
-        />
-      )}
+      {!isFullBleed && <Navbar />}
 
       {/* Main Viewport via React Router */}
-      <main className={`main-viewport ${isCustomerDashboard ? 'dashboard-viewport' : ''}`}>
+      <main className={`main-viewport ${isCustomerDashboard || isAdminPortal ? 'dashboard-viewport' : ''} ${isAuthPage ? 'auth-viewport' : ''}`}>
         <AppRoutes />
       </main>
 
       {/* Footer */}
+      {!isFullBleed && (
       <footer className="platform-footer">
         <div className="footer-inner">
           <div className="footer-left">
@@ -62,13 +58,9 @@ function MainApp() {
           </div>
         </div>
       </footer>
+      )}
 
       {/* Modals and Drawers */}
-      <AuthModal
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
-      />
-
       <CartDrawer
         isOpen={isCartOpen}
         onClose={closeCart}
@@ -84,11 +76,6 @@ function MainApp() {
         onOrderCompleted={() => {
           navigate('/orders');
         }}
-      />
-
-      <ProductDetailModal
-        product={selectedProduct}
-        onClose={() => setSelectedProduct(null)}
       />
 
       {/* Real-time Event Console Drawer */}

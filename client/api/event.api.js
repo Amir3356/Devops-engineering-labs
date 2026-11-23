@@ -1,7 +1,7 @@
 /**
  * Event Stream API Layer
  */
-export const getEventHistoryApi = async (limit = 30) => {
+export const getEventHistoryApi = async () => {
   return {
     success: true,
     data: {

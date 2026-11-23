@@ -1,12 +1,10 @@
 import { useAuth } from '../context/AuthContext';
-import { useCart } from '../context/CartContext';
 import { Can } from '../context/AbilityContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ShoppingBag, User, LogOut, ShieldCheck, ShoppingCart, ListOrdered, LayoutDashboard, Compass } from 'lucide-react';
+import { ShoppingBag, User, LogOut, ShieldCheck, ListOrdered, LayoutDashboard, Compass } from 'lucide-react';
 
-export default function Navbar({ onOpenAuth, onOpenCart }) {
+export default function Navbar() {
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
-  const { cartCount } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -70,17 +68,8 @@ export default function Navbar({ onOpenAuth, onOpenCart }) {
         </nav>
 
         {/* Action Controls */}
-        <div className="nav-actions">
-          {/* Customer Shopping Cart (Guarded by CASL Ability) */}
-          <Can I="manage" a="Cart">
-            <button className="cart-trigger-btn" onClick={onOpenCart} title="View Shopping Cart">
-              <ShoppingCart size={20} />
-              {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
-            </button>
-          </Can>
-
-          {/* Authentication Section */}
-          {isAuthenticated ? (
+        {isAuthenticated && (
+          <div className="nav-actions">
             <div className="user-profile-widget">
               <div className="user-identity">
                 <span className="user-name">{user.name || user.email || user.phone}</span>
@@ -93,12 +82,8 @@ export default function Navbar({ onOpenAuth, onOpenCart }) {
                 <LogOut size={16} />
               </button>
             </div>
-          ) : (
-            <button className="login-modal-btn" onClick={onOpenAuth}>
-              Sign In
-            </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </header>
   );

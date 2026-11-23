@@ -28,6 +28,13 @@ export const getCategoriesApi = () => {
   });
 };
 
+export const createCategoryApi = (categoryData) => {
+  return request('/api/products/categories', {
+    method: 'POST',
+    body: JSON.stringify(categoryData)
+  });
+};
+
 export const createProductApi = (productData) => {
   return request('/api/products', {
     method: 'POST',
@@ -46,4 +53,28 @@ export const deleteProductApi = (id) => {
   return request(`/api/products/${id}`, {
     method: 'DELETE'
   });
+};
+
+export const uploadProductImageApi = async (file) => {
+  const formData = new FormData();
+  formData.append('image', file);
+
+  const token = localStorage.getItem('ecommerce_token');
+  const headers = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:5000';
+  const response = await fetch(`${GATEWAY_URL}/api/products/upload`, {
+    method: 'POST',
+    headers,
+    body: formData
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.message || 'Image upload failed');
+  }
+  return payload;
 };
