@@ -1,7 +1,7 @@
 import { useAuth } from '../../context/AuthContext';
 import {
   Compass,
-  Package,
+  ShoppingCart,
   LogOut,
   ShoppingBag,
   User
@@ -9,68 +9,73 @@ import {
 
 /**
  * ProductDiscoverySidebar component
- * RBAC Customer Dashboard sidebar providing customer identity,
- * primary workspace navigation, and session logout.
+ * RBAC Customer Dashboard sidebar matching the Admin Portal sidebar UI & layout.
  */
 export default function ProductDiscoverySidebar({
   activeTab,
   setActiveTab,
+  productsCount = 0,
   ordersCount = 0
 }) {
   const { user, logout } = useAuth();
 
   return (
-    <aside className="discovery-sidebar">
-      {/* Brand */}
+    <aside className="admin-sidebar">
+      {/* Brand Header */}
       <div className="side-brand">
-        <div className="side-brand-icon"><ShoppingBag size={20} /></div>
+        <div className="side-brand-icon">
+          <ShoppingBag size={20} />
+        </div>
         <div className="side-brand-text">
           <span className="side-brand-name">NexusCommerce</span>
-          <span className="side-brand-sub">Customer Portal</span>
+          <span className="side-brand-sub">Customer RBAC Portal</span>
         </div>
       </div>
 
-      {/* Main Customer Workspace Tabs */}
-      <div className="discovery-section-nav">
-        <span className="side-section-label">Shopping</span>
+      {/* Main Navigation Menu */}
+      <nav className="admin-nav-menu">
+        <span className="side-section-label">Catalog Management</span>
         <button
-          className={`discovery-nav-tab ${activeTab === 'discovery' ? 'active' : ''}`}
+          type="button"
+          className={`admin-nav-item ${activeTab === 'discovery' ? 'active' : ''}`}
           onClick={() => setActiveTab('discovery')}
         >
-          <Compass size={17} />
+          <Compass size={18} />
           <span>Explore Products</span>
+          <span className="admin-nav-count">{productsCount}</span>
         </button>
 
+        <span className="side-section-label">Sales &amp; Fulfillment</span>
         <button
-          className={`discovery-nav-tab ${activeTab === 'orders' ? 'active' : ''}`}
+          type="button"
+          className={`admin-nav-item ${activeTab === 'orders' ? 'active' : ''}`}
           onClick={() => setActiveTab('orders')}
         >
-          <Package size={17} />
+          <ShoppingCart size={18} />
           <span>My Orders</span>
-          {ordersCount > 0 && <span className="discovery-tab-badge highlight">{ordersCount}</span>}
+          <span className="admin-nav-count">{ordersCount}</span>
         </button>
-      </div>
+      </nav>
 
       {/* Sidebar Footer: Identity + Sign Out */}
       <div className="side-footer">
-        {user && (
-          <div className="side-user-card">
-            <div className="side-user-avatar"><User size={18} /></div>
-            <div className="side-user-info">
-              <span className="side-user-name">{user.name || 'Valued Customer'}</span>
-              <span className="side-user-role">{user.role}</span>
-              <span className="side-user-contact">{user.email || user.phone}</span>
-            </div>
+        <div className="side-user-card">
+          <div className="side-user-avatar">
+            <User size={18} />
           </div>
-        )}
+          <div className="side-user-info">
+            <span className="side-user-name">{user?.name || 'Customer'}</span>
+            <span className="side-user-role">{user?.role || 'customer'}</span>
+            <span className="side-user-contact">{user?.email || user?.phone}</span>
+          </div>
+        </div>
         <button
           type="button"
           className="side-signout-btn"
           onClick={logout}
           title="Sign out of your session"
         >
-          <LogOut size={16} />
-          <span>Sign Out</span>
+          <LogOut size={16} /> Sign Out
         </button>
       </div>
     </aside>
