@@ -1093,13 +1093,30 @@ export default function AdminDashboard() {
             <form onSubmit={handleSaveProduct} className="admin-form">
               <div className="form-group">
                 <label>Product</label>
-                <input
-                  type="text"
+                <select
                   value={productForm.name}
-                  onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                  placeholder="e.g. Mechanical Gaming Keyboard"
+                  onChange={(e) => {
+                    const selectedName = e.target.value;
+                    const matched = products.find((p) => p.name === selectedName);
+                    setProductForm((prev) => ({
+                      ...prev,
+                      name: selectedName,
+                      category: matched?.category || prev.category,
+                      image: matched?.image || prev.image
+                    }));
+                    if (matched?.image) {
+                      setImagePreview(matched.image);
+                    }
+                  }}
                   required
-                />
+                >
+                  <option value="" disabled>-- Select a Product --</option>
+                  {productDropdownOptions.map((prodName) => (
+                    <option key={prodName} value={prodName}>
+                      {prodName}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="form-group">
