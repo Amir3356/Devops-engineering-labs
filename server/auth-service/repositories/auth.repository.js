@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 import bcrypt from 'bcryptjs';
+import { getAdminCredentials, ADMIN_ACCOUNT_ID } from '../../utils/adminCredentials.js';
 import AuthAccountModel from '../models/auth.model.js';
 
 /**
@@ -31,18 +32,21 @@ class AuthRepository {
       // Ensure initial Administrator credentials from environment variables if table is empty
       const countRes = await pool.query('SELECT COUNT(*) FROM accounts');
       if (parseInt(countRes.rows[0].count, 10) === 0) {
-        const adminEmail = process.env.ADMIN_EMAIL || 'amirsiraj1995@gmail.com';
-        const adminPhone = process.env.ADMIN_PHONE || '+251938617803';
-        const adminPassword = process.env.ADMIN_PASSWORD || 'AEHJSS36';
-        const adminName = process.env.ADMIN_NAME || 'System Administrator';
-        const salt = bcrypt.genSaltSync(10);
-        const adminPasswordHash = bcrypt.hashSync(adminPassword, salt);
-        await pool.query(`
-          INSERT INTO accounts (id, email, phone, password, role, name)
-          VALUES ($1, $2, $3, $4, 'admin', $5)
-          ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, password = EXCLUDED.password;
-        `, ['usr-admin-001', adminEmail, adminPhone, adminPasswordHash, adminName]);
-        console.log('[Auth DB] Seeded Administrator account from environment variables.');
+        let admin;
+        try {
+          admin = getAdminCredentials();
+        } catch (credErr) {
+          console.warn(`[Auth DB] Administrator not seeded: ${credErr.message}`);
+        }
+        if (admin) {
+          const adminPasswordHash = await bcrypt.hash(admin.password, 10);
+          await pool.query(`
+            INSERT INTO accounts (id, email, phone, password, role, name)
+            VALUES ($1, $2, NULL, $3, 'admin', $4)
+            ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, phone = NULL, password = EXCLUDED.password;
+          `, [ADMIN_ACCOUNT_ID, admin.email, adminPasswordHash, admin.name]);
+          console.log('[Auth DB] Seeded Administrator account from environment variables.');
+        }
       }
     } catch (err) {
       console.error('[Auth Repository] PostgreSQL init error:', err.message);

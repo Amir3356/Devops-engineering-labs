@@ -71,5 +71,9 @@ export const uploadProductImageApi = async (file) => {
     headers
   });
 
-  return response.data;
+  const payload = response.data?.data || response.data;
+  return {
+    ...payload,
+    imageUrl: payload.imageUrl || payload.url
+  };
 };

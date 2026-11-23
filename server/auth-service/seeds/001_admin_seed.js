@@ -1,36 +1,28 @@
 import bcrypt from 'bcryptjs';
+import { getAdminCredentials, ADMIN_ACCOUNT_ID } from '../../utils/adminCredentials.js';
 
 /**
- * Knex Seed: Insert or update default Administrator credentials
+ * Knex Seed: Insert or update the default Administrator account.
+ * Credentials come only from the environment (ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME).
  * @param {import('knex').Knex} knex
  */
 export async function seed(knex) {
-  const salt = bcrypt.genSaltSync(10);
-  const adminPassword = process.env.ADMIN_PASSWORD || 'AEHJSS36';
-  const adminEmail = process.env.ADMIN_EMAIL || 'amirsiraj1995@gmail.com';
-  const adminPhone = process.env.ADMIN_PHONE || '+251938617803';
-  const adminName = process.env.ADMIN_NAME || 'System Administrator';
-  const hashedPassword = bcrypt.hashSync(adminPassword, salt);
+  const { email, password, name } = getAdminCredentials();
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const account = {
+    email,
+    phone: null, // administrators are not given a phone number
+    password: hashedPassword,
+    role: 'admin',
+    name,
+    updated_at: knex.fn.now()
+  };
 
   await knex('accounts')
-    .insert({
-      id: 'usr-admin-001',
-      email: adminEmail,
-      phone: adminPhone,
-      password: hashedPassword,
-      role: 'admin',
-      name: adminName,
-      updated_at: knex.fn.now()
-    })
+    .insert({ id: ADMIN_ACCOUNT_ID, ...account })
     .onConflict('id')
-    .merge({
-      email: adminEmail,
-      phone: adminPhone,
-      password: hashedPassword,
-      role: 'admin',
-      name: adminName,
-      updated_at: knex.fn.now()
-    });
+    .merge(account);
 
-  console.log(`[Knex Seed] Successfully seeded Admin credentials (${adminEmail} / ${adminPassword}) in auth_db`);
+  console.log(`[Knex Seed] Administrator account seeded in auth_db (${email}).`);
 }

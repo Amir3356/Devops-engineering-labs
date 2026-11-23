@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 import bcrypt from 'bcryptjs';
+import { getAdminCredentials, ADMIN_ACCOUNT_ID } from '../../utils/adminCredentials.js';
 import UserModel from '../models/user.model.js';
 
 /**
@@ -31,17 +32,19 @@ class UserRepository {
       // Seed initial admin from environment variables if configured and table is empty
       const countRes = await pool.query('SELECT COUNT(*) FROM users');
       if (parseInt(countRes.rows[0].count, 10) === 0) {
-        const adminEmail = process.env.ADMIN_EMAIL || 'amirsiraj1995@gmail.com';
-        const adminPhone = process.env.ADMIN_PHONE || '+251938617803';
-        const adminPassword = process.env.ADMIN_PASSWORD || 'AEHJSS36';
-        if (adminEmail || adminPhone) {
-          const salt = bcrypt.genSaltSync(10);
-          const adminPasswordHash = bcrypt.hashSync(adminPassword, salt);
+        let admin;
+        try {
+          admin = getAdminCredentials();
+        } catch (credErr) {
+          console.warn(`[User DB] Administrator not seeded: ${credErr.message}`);
+        }
+        if (admin) {
+          const adminPasswordHash = await bcrypt.hash(admin.password, 10);
           await pool.query(`
             INSERT INTO users (id, email, phone, password, role, name)
-            VALUES ($1, $2, $3, $4, 'admin', $5)
-            ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, password = EXCLUDED.password;
-          `, ['usr-admin-001', adminEmail, adminPhone, adminPasswordHash, process.env.ADMIN_NAME || 'System Administrator']);
+            VALUES ($1, $2, NULL, $3, 'admin', $4)
+            ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, phone = NULL, password = EXCLUDED.password;
+          `, [ADMIN_ACCOUNT_ID, admin.email, adminPasswordHash, admin.name]);
           console.log('[User DB] Seeded initial Admin account from environment variables.');
         }
       }

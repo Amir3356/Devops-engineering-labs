@@ -412,20 +412,21 @@ export default function AdminDashboard() {
 
     try {
       const res = await uploadProductImageApi(file);
-      if (res && res.imageUrl) {
-        setProductForm((prev) => ({ ...prev, image: res.imageUrl }));
-        setImagePreview(res.imageUrl);
+      const uploadedUrl = res?.imageUrl || res?.url;
+      if (uploadedUrl) {
+        setProductForm((prev) => ({ ...prev, image: uploadedUrl }));
+        setImagePreview(uploadedUrl);
         addLocalEvent({
           type: 'ImageUploaded',
           filename: res.filename || file.name,
-          url: res.imageUrl,
+          url: uploadedUrl,
           timestamp: new Date().toISOString()
         });
       } else {
         setFormError('Failed to get uploaded image URL from server.');
       }
     } catch (err) {
-      setFormError(err.message || 'Error uploading image through Multer endpoint.');
+      setFormError(err.message || 'Error uploading image through MinIO endpoint.');
     } finally {
       setIsUploadingImage(false);
     }

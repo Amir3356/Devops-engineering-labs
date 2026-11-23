@@ -31,6 +31,10 @@ services:
       dockerfile: auth-service/Dockerfile
     container_name: auth-service
     restart: unless-stopped
+    # Admin seed credentials (ADMIN_EMAIL / ADMIN_PASSWORD / ADMIN_NAME) come from server/.env.
+    # Values under `environment:` below take precedence over this file.
+    env_file:
+      - ./server/.env
     environment:
       PORT: 5008
       AUTH_DB_URL: postgresql://postgres:postgres@postgres:5432/auth_db
@@ -55,6 +59,10 @@ services:
       dockerfile: user-service/Dockerfile
     container_name: user-service
     restart: unless-stopped
+    # Admin seed credentials (ADMIN_EMAIL / ADMIN_PASSWORD / ADMIN_NAME) come from server/.env.
+    # Values under `environment:` below take precedence over this file.
+    env_file:
+      - ./server/.env
     environment:
       PORT: 5001
       USER_DB_URL: postgresql://postgres:postgres@postgres:5432/user_db
@@ -86,11 +94,20 @@ services:
       DB_POOL_MAX: 20
       DB_POOL_IDLE_TIMEOUT: 30000
       DB_POOL_CONN_TIMEOUT: 5000
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET_NAME: ecommerce-products
+      MINIO_PUBLIC_URL: http://localhost:9000
     ports:
       - "5002:5002"
     depends_on:
       postgres:
         condition: service_healthy
+      minio:
+        condition: service_started
     networks:
       ecommerce-net:
         aliases:
@@ -237,9 +254,17 @@ services:
       SALE_SERVICE_URL: http://sale-service:5005
       INVENTORY_SERVICE_URL: http://inventory-service:5006
       NOTIFICATION_SERVICE_URL: http://notification-service:5007
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET_NAME: ecommerce-products
+      MINIO_PUBLIC_URL: http://localhost:9000
     ports:
       - "5000:5000"
     depends_on:
+      - minio
       - auth-service
       - user-service
       - product-category-service
@@ -251,10 +276,31 @@ services:
     networks:
       - ecommerce-net
 
+  # ========================================================
+  # 10. MinIO Object Storage Server (S3 API: 9000, Web: 9001)
+  # ========================================================
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    container_name: minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - ecommerce-net
+
 networks:
   ecommerce-net:
     driver: bridge
 
 volumes:
   postgres_data:
+    driver: local
+  minio_data:
     driver: local

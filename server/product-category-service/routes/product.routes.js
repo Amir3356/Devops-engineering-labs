@@ -4,30 +4,35 @@ import { requireAdmin } from '../middleware/auth.middleware.js';
 import { requireAbility } from '../../utils/ability.js';
 import { validateBody, createProductSchema } from '../../utils/validation.js';
 import { uploadMiddleware } from '../../utils/upload.js';
+import { uploadToMinio } from '../../utils/minio.js';
 import { success, error } from '../../utils/response.js';
 
 const router = express.Router();
 
-// Multer Image Upload Endpoint
+// Multer Image Upload Endpoint (MinIO storage)
 router.post('/upload', requireAdmin, (req, res) => {
-  uploadMiddleware(req, res, (err) => {
+  uploadMiddleware(req, res, async (err) => {
     if (err) {
       return error(res, err.message || 'Image upload failed', 400);
     }
     if (!req.file) {
       return error(res, 'No image file uploaded', 400);
     }
-    const ext = (req.file.originalname && req.file.originalname.includes('.'))
-      ? `.${req.file.originalname.split('.').pop()}`
-      : '.jpg';
-    const filename = `product-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
 
-    return success(res, {
-      url: `https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop`,
-      filename,
-      mimetype: req.file.mimetype,
-      size: req.file.size
-    }, 'Product image uploaded successfully (ready for MinIO storage)', 201);
+    try {
+      const uploadResult = await uploadToMinio(req.file.buffer, req.file.originalname, req.file.mimetype);
+      return success(res, {
+        url: uploadResult.url,
+        imageUrl: uploadResult.url,
+        filename: uploadResult.objectName,
+        bucket: uploadResult.bucket,
+        mimetype: req.file.mimetype,
+        size: req.file.size
+      }, 'Product image uploaded successfully to MinIO object storage', 201);
+    } catch (uploadErr) {
+      console.error('[MinIO Product Service Upload Error]:', uploadErr);
+      return error(res, uploadErr.message || 'MinIO upload failed', 500);
+    }
   });
 });
 
