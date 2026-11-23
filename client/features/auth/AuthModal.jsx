@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { loginSchema, registerSchema } from '../../utils/validators';
 import { X, ShieldAlert, CheckCircle2, User, Lock, Mail } from 'lucide-react';
 
 export default function AuthModal({ isOpen, onClose }) {
   const { login, register } = useAuth();
+  const navigate = useNavigate();
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -43,8 +45,13 @@ export default function AuthModal({ isOpen, onClose }) {
           return;
         }
 
-        await login(formData.email, formData.password);
+        const res = await login(formData.email, formData.password);
         onClose();
+        if (res?.user?.role === 'admin') {
+          navigate('/admin/dashboard', { replace: true });
+        } else {
+          navigate('/dashboard', { replace: true });
+        }
       } else {
         const result = registerSchema.safeParse(formData);
         if (!result.success) {
@@ -53,14 +60,19 @@ export default function AuthModal({ isOpen, onClose }) {
           return;
         }
 
-        await register({
+        const res = await register({
           name: formData.name,
           email: formData.email,
           password: formData.password,
           confirmPassword: formData.confirmPassword
         });
-        setSuccessMsg('Account created successfully!');
-        setTimeout(() => onClose(), 1200);
+        onClose();
+        const targetRole = res?.user?.role || 'customer';
+        if (targetRole === 'admin') {
+          navigate('/admin/dashboard', { replace: true });
+        } else {
+          navigate('/dashboard', { replace: true });
+        }
       }
     } catch (err) {
       setErrorMsg(err.message || 'Authentication error');

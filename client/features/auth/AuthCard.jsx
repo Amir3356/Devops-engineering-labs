@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { loginSchema, registerSchema } from '../../utils/validators';
 import { useNavigate } from 'react-router-dom';
@@ -69,6 +69,17 @@ export default function AuthCard() {
   const { user, isAuthenticated, isAdmin, login, register, logout } = useAuth();
   const navigate = useNavigate();
 
+  // Automatically redirect authenticated users to their appropriate dashboard
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      if (user.role === 'admin') {
+        navigate('/admin/dashboard', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [isAuthenticated, user, navigate]);
+
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -107,10 +118,10 @@ export default function AuthCard() {
         }
 
         const res = await login(formData.email, formData.password);
-        if (res.user?.role === 'admin') {
-          navigate('/admin/dashboard');
+        if (res?.user?.role === 'admin') {
+          navigate('/admin/dashboard', { replace: true });
         } else {
-          navigate('/dashboard');
+          navigate('/dashboard', { replace: true });
         }
       } else {
         const result = registerSchema.safeParse(formData);
@@ -120,13 +131,20 @@ export default function AuthCard() {
           return;
         }
 
-        await register({
+        const res = await register({
           name: formData.name,
           email: formData.email,
           password: formData.password,
           confirmPassword: formData.confirmPassword
         });
-        setSuccessMsg('Account created successfully! You are now signed in.');
+
+        // Immediately redirect into appropriate RBAC dashboard
+        const targetRole = res?.user?.role || 'customer';
+        if (targetRole === 'admin') {
+          navigate('/admin/dashboard', { replace: true });
+        } else {
+          navigate('/dashboard', { replace: true });
+        }
       }
     } catch (err) {
       setErrorMsg(err.message || 'Authentication error');
