@@ -2,4 +2,5 @@ export { default as HomePage } from './HomePage';
 export { default as OrdersPage } from './OrdersPage';
 export { default as ProfilePage } from './ProfilePage';
 export { default as AdminPage } from './AdminPage';
+export { default as CustomerDashboardPage } from './CustomerDashboardPage';
 export { default as NotFoundPage } from './NotFoundPage';

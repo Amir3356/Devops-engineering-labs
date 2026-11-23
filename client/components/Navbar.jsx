@@ -1,14 +1,12 @@
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { useEvents } from '../context/EventContext';
 import { Can } from '../context/AbilityContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ShoppingBag, Zap, User, LogOut, ShieldCheck, ShoppingCart, ListOrdered, LayoutDashboard } from 'lucide-react';
+import { ShoppingBag, User, LogOut, ShieldCheck, ShoppingCart, ListOrdered, LayoutDashboard, Compass } from 'lucide-react';
 
 export default function Navbar({ onOpenAuth, onOpenCart }) {
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const { cartCount } = useCart();
-  const { unreadCount, openDrawer, events } = useEvents();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -30,13 +28,6 @@ export default function Navbar({ onOpenAuth, onOpenCart }) {
 
         {/* Navigation Links with CASL RBAC Guards */}
         <nav className="nav-links">
-          <button
-            className={`nav-btn ${currentPath === '/' || currentPath === '/catalog' ? 'active' : ''}`}
-            onClick={() => navigate('/')}
-          >
-            Catalog
-          </button>
-
           <Can I="read" a="Order">
             <button
               className={`nav-btn ${currentPath === '/orders' ? 'active' : ''}`}
@@ -57,6 +48,16 @@ export default function Navbar({ onOpenAuth, onOpenCart }) {
             </button>
           </Can>
 
+          <Can I="read" a="CustomerDashboard">
+            <button
+              className={`nav-btn ${currentPath.startsWith('/dashboard') ? 'active' : ''}`}
+              onClick={() => navigate('/dashboard')}
+            >
+              <Compass size={16} />
+              Customer Dashboard
+            </button>
+          </Can>
+
           <Can I="manage" a="AdminDashboard">
             <button
               className={`nav-btn ${currentPath.startsWith('/admin') ? 'active' : ''}`}
@@ -70,18 +71,6 @@ export default function Navbar({ onOpenAuth, onOpenCart }) {
 
         {/* Action Controls */}
         <div className="nav-actions">
-          {/* Live Event Stream Button */}
-          <button
-            className="event-stream-trigger"
-            onClick={openDrawer}
-            title="Open Live EventEmitter Console"
-          >
-            <Zap size={17} className="pulse-icon" />
-            <span className="event-stream-label">Event Hub</span>
-            <span className="event-badge">{events.length}</span>
-            {unreadCount > 0 && <span className="event-unread-dot" />}
-          </button>
-
           {/* Customer Shopping Cart (Guarded by CASL Ability) */}
           <Can I="manage" a="Cart">
             <button className="cart-trigger-btn" onClick={onOpenCart} title="View Shopping Cart">
@@ -94,7 +83,7 @@ export default function Navbar({ onOpenAuth, onOpenCart }) {
           {isAuthenticated ? (
             <div className="user-profile-widget">
               <div className="user-identity">
-                <span className="user-name">{user.name || user.phone}</span>
+                <span className="user-name">{user.name || user.email || user.phone}</span>
                 <span className={`user-role-tag ${user.role}`}>
                   {user.role === 'admin' ? <ShieldCheck size={12} /> : null}
                   {user.role}

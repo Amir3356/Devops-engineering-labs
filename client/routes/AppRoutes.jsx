@@ -1,18 +1,27 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { HomePage, OrdersPage, ProfilePage, AdminPage, NotFoundPage } from '../pages';
+import { HomePage, OrdersPage, ProfilePage, AdminPage, CustomerDashboardPage, NotFoundPage } from '../pages';
 import ProtectedRoute from './ProtectedRoute';
 
 /**
  * Main application routing configuration utilizing React Router and CASL RBAC guards.
  */
-export default function AppRoutes({ onSelectProduct }) {
+export default function AppRoutes() {
   return (
     <Routes>
-      {/* Public Home & Catalog */}
-      <Route path="/" element={<HomePage onSelectProduct={onSelectProduct} />} />
-      <Route path="/catalog" element={<Navigate to="/" replace />} />
+      {/* Public Home: Authentication Portal */}
+      <Route path="/" element={<HomePage />} />
+      <Route path="/catalog" element={<Navigate to="/dashboard" replace />} />
 
       {/* Protected Customer Routes via CASL RBAC */}
+      <Route
+        path="/dashboard/*"
+        element={
+          <ProtectedRoute action="read" subject="CustomerDashboard">
+            <CustomerDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/customer/*" element={<Navigate to="/dashboard" replace />} />
       <Route
         path="/orders"
         element={

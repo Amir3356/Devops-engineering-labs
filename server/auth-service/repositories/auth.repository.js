@@ -15,13 +15,16 @@ class AuthRepository {
       await pool.query(`
         CREATE TABLE IF NOT EXISTS accounts (
           id VARCHAR(64) PRIMARY KEY,
-          phone VARCHAR(32) UNIQUE NOT NULL,
+          email VARCHAR(128) UNIQUE,
+          phone VARCHAR(32),
           password VARCHAR(255) NOT NULL,
           role VARCHAR(16) NOT NULL DEFAULT 'customer',
           name VARCHAR(128) NOT NULL,
           created_at TIMESTAMPTZ DEFAULT NOW(),
           updated_at TIMESTAMPTZ DEFAULT NOW()
         );
+        ALTER TABLE accounts ADD COLUMN IF NOT EXISTS email VARCHAR(128) UNIQUE;
+        ALTER TABLE accounts ALTER COLUMN phone DROP NOT NULL;
       `);
     } catch (err) {
       console.error('[Auth Repository] PostgreSQL init error:', err.message);
@@ -32,6 +35,7 @@ class AuthRepository {
     if (!r) return null;
     return new AuthAccountModel({
       id: r.id,
+      email: r.email,
       phone: r.phone,
       password: r.password,
       role: r.role,
@@ -41,11 +45,22 @@ class AuthRepository {
     });
   }
 
-  async findByPhone(phone) {
+  async findByIdentifier(identifier) {
     await this.ready;
-    const cleanPhone = (phone || '').trim();
-    const res = await pool.query('SELECT * FROM accounts WHERE phone = $1', [cleanPhone]);
+    const clean = (identifier || '').trim().toLowerCase();
+    const res = await pool.query(
+      'SELECT * FROM accounts WHERE LOWER(email) = $1 OR phone = $1',
+      [clean]
+    );
     return this.mapRow(res.rows[0]);
+  }
+
+  async findByEmail(email) {
+    return this.findByIdentifier(email);
+  }
+
+  async findByPhone(phone) {
+    return this.findByIdentifier(phone);
   }
 
   async findById(id) {
@@ -58,13 +73,14 @@ class AuthRepository {
     await this.ready;
     const model = new AuthAccountModel(accountData);
     const sql = `
-      INSERT INTO accounts (id, phone, password, role, name, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO accounts (id, email, phone, password, role, name, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *;
     `;
     const values = [
       model.id,
-      model.phone,
+      model.email || null,
+      model.phone || null,
       model.password,
       model.role,
       model.name,
@@ -75,10 +91,23 @@ class AuthRepository {
     return this.mapRow(res.rows[0]);
   }
 
-  async findAll() {
+  async update(id, updates) {
     await this.ready;
-    const res = await pool.query('SELECT * FROM accounts ORDER BY created_at DESC');
-    return res.rows.map(r => this.mapRow(r));
+    const fields = [];
+    const values = [];
+    let idx = 1;
+
+    for (const [key, val] of Object.entries(updates)) {
+      fields.push(`${key} = $${idx++}`);
+      values.push(val);
+    }
+
+    fields.push(`updated_at = NOW()`);
+    values.push(id);
+
+    const sql = `UPDATE accounts SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *;`;
+    const res = await pool.query(sql, values);
+    return this.mapRow(res.rows[0]);
   }
 }
 

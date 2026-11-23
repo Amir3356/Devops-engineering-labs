@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useEvents } from '../../context/EventContext';
-import { User, Phone, MapPin, CheckCircle, Save } from 'lucide-react';
+import { User, Mail, MapPin, CheckCircle, Save } from 'lucide-react';
 
 export default function CustomerProfile() {
   const { user, updateProfile } = useAuth();
@@ -9,7 +9,7 @@ export default function CustomerProfile() {
 
   const [formData, setFormData] = useState({
     name: user?.name || '',
-    phone: user?.phone || '',
+    email: user?.email || '',
     street: user?.address?.street || '',
     city: user?.address?.city || '',
     state: user?.address?.state || '',
@@ -59,7 +59,7 @@ export default function CustomerProfile() {
           </div>
           <div>
             <h2>Customer Profile</h2>
-            <p className="profile-subtitle">Phone: {user?.phone} • Role: {user?.role}</p>
+            <p className="profile-subtitle">Email: {user?.email || user?.phone} • Role: {user?.role}</p>
           </div>
         </div>
 
@@ -85,10 +85,10 @@ export default function CustomerProfile() {
           </div>
 
           <div className="form-group">
-            <label>Phone Number (Primary Login ID)</label>
+            <label>Email Address (Primary Login ID)</label>
             <div className="input-with-icon">
-              <Phone size={16} />
-              <input type="tel" value={user?.phone || formData.phone} disabled className="input-disabled" />
+              <Mail size={16} />
+              <input type="email" value={user?.email || formData.email || user?.phone} disabled className="input-disabled" />
             </div>
           </div>
 

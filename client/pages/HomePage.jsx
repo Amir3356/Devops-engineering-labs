@@ -1,8 +1,12 @@
-import HomeCatalog from '../features/products/HomeCatalog';
+import { AuthCard } from '../features/auth';
 
 /**
- * HomePage displays the product catalog showcase.
+ * HomePage displays the Authentication Portal as the primary view.
  */
-export default function HomePage({ onSelectProduct }) {
-  return <HomeCatalog onSelectProduct={onSelectProduct} />;
+export default function HomePage() {
+  return (
+    <div className="auth-page-container">
+      <AuthCard />
+    </div>
+  );
 }

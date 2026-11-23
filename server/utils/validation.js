@@ -5,14 +5,22 @@ import { z } from 'zod';
 // ==========================================
 export const authRegisterSchema = z.object({
   name: z.string().trim().min(2, 'Name must be at least 2 characters'),
-  phone: z.string().trim().min(6, 'Phone must be at least 6 digits'),
+  email: z.string().trim().email('Valid email address is required').optional(),
+  phone: z.string().trim().optional(),
   password: z.string().min(6, 'Password must be at least 6 characters long'),
   confirmPassword: z.string().optional()
+}).refine(data => Boolean(data.email || data.phone), {
+  message: 'Email address is required',
+  path: ['email']
 });
 
 export const authLoginSchema = z.object({
-  phone: z.string().trim().min(6, 'Phone number is required'),
-  password: z.string().min(6, 'Password is required')
+  email: z.string().trim().optional(),
+  phone: z.string().trim().optional(),
+  password: z.string().min(1, 'Password is required')
+}).refine(data => Boolean(data.email || data.phone), {
+  message: 'Email address is required',
+  path: ['email']
 });
 
 // ==========================================

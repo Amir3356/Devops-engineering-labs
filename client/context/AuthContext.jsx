@@ -19,8 +19,8 @@ export const AuthProvider = ({ children }) => {
     sync();
   }, []);
 
-  const login = async (phone, password) => {
-    const res = await authService.login(phone, password);
+  const login = async (email, password) => {
+    const res = await authService.login(email, password);
     if (res.success) {
       setUser(res.user);
       setToken(authService.getToken());
@@ -28,8 +28,8 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async ({ name, phone, password, confirmPassword }) => {
-    const res = await authService.register({ name, phone, password, confirmPassword });
+  const register = async ({ name, email, password, confirmPassword }) => {
+    const res = await authService.register({ name, email, password, confirmPassword });
     if (res.success) {
       setUser(res.user);
       setToken(authService.getToken());

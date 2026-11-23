@@ -36,8 +36,9 @@ class AuthService {
     localStorage.removeItem(USER_KEY);
   }
 
-  async login(phone, password) {
-    const res = await loginApi({ phone, password });
+  async login(email, password) {
+    const payload = typeof email === 'object' ? email : { email, password };
+    const res = await loginApi(payload);
     if (res.success && res.data) {
       const { user, token } = res.data;
       this.setToken(token);
@@ -47,12 +48,12 @@ class AuthService {
     throw new Error(res.message || 'Login failed');
   }
 
-  async register({ name, phone, password, confirmPassword }) {
+  async register({ name, email, password, confirmPassword }) {
     if (password !== confirmPassword) {
       throw new Error('Password and Confirm Password do not match');
     }
 
-    const res = await registerApi({ name, phone, password, confirmPassword });
+    const res = await registerApi({ name, email, password, confirmPassword });
     if (res.success && res.data) {
       const { user, token } = res.data;
       this.setToken(token);

@@ -7,6 +7,10 @@ const CartContext = createContext(null);
 export const CartProvider = ({ children }) => {
   const { addLocalEvent } = useEvents();
   const [cartItems, setCartItems] = useState(() => cartService.getStoredCart());
+  const [isCartOpen, setIsCartOpen] = useState(false);
+
+  const openCart = () => setIsCartOpen(true);
+  const closeCart = () => setIsCartOpen(false);
 
   useEffect(() => {
     cartService.persistCart(cartItems);
@@ -63,6 +67,10 @@ export const CartProvider = ({ children }) => {
       updateQuantity,
       removeFromCart,
       clearCart,
+      isCartOpen,
+      setIsCartOpen,
+      openCart,
+      closeCart,
       cartCount: totals.itemCount,
       cartTotal: totals.grandTotal,
       subtotal: totals.subtotal,

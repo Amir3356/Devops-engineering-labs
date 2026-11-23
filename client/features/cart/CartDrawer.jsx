@@ -84,7 +84,7 @@ export default function CartDrawer({ isOpen, onClose, onProceedToCheckout }) {
             </div>
 
             <button className="btn-checkout" onClick={onProceedToCheckout}>
-              Proceed to Checkout
+              Pay
               <ArrowRight size={18} />
             </button>
             <button className="btn-clear-cart" onClick={clearCart}>

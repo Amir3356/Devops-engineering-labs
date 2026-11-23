@@ -19,6 +19,10 @@ export function defineAbilityFor(user) {
     can('create', 'Order');
     can('cancel', 'Order');
     can('manage', 'Profile');
+    can('read', 'CustomerDashboard');
+    can('read', 'Notification');
+    can('manage', 'Notification');
+    can('read', 'Payment');
   } else {
     // Guest permissions (default-deny for all else)
     can('read', 'Product');

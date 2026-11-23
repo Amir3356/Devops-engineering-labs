@@ -4,8 +4,9 @@ import crypto from 'crypto';
  * Authentication Account Model
  */
 class AuthAccountModel {
-  constructor({ id, phone, password, role, name, createdAt, updatedAt }) {
+  constructor({ id, email, phone, password, role, name, createdAt, updatedAt }) {
     this.id = id || `usr-${crypto.randomUUID()}`;
+    this.email = (email || '').trim().toLowerCase();
     this.phone = (phone || '').trim();
     this.password = password; // bcrypt hashed password
     this.role = role || 'customer'; // 'customer' or 'admin'
@@ -15,14 +16,15 @@ class AuthAccountModel {
   }
 
   static validateRegistration(data) {
-    const { name, phone, password, confirmPassword } = data;
+    const { name, email, phone, password, confirmPassword } = data;
+    const identifier = (email || phone || '').trim();
 
     if (!name || name.trim().length === 0) {
       throw new Error('Full name is required');
     }
 
-    if (!phone || phone.trim().length < 6) {
-      throw new Error('A valid phone number is required (at least 6 digits)');
+    if (!identifier) {
+      throw new Error('A valid email address is required');
     }
 
     if (!password || password.length < 6) {
@@ -41,6 +43,7 @@ class AuthAccountModel {
   toSafeJSON() {
     return {
       id: this.id,
+      email: this.email,
       phone: this.phone,
       name: this.name,
       role: this.role,
@@ -52,6 +55,7 @@ class AuthAccountModel {
   toJSON() {
     return {
       id: this.id,
+      email: this.email,
       phone: this.phone,
       password: this.password,
       role: this.role,

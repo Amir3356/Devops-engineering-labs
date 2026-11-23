@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useEvents } from '../../context/EventContext';
 import orderService from '../../services/order.service';
 import { shippingSchema } from '../../utils/validators';
-import { X, CreditCard, ShieldCheck, CheckCircle2, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import { X, CreditCard, ShieldCheck, CheckCircle2, Lock, AlertCircle, Loader2, Mail } from 'lucide-react';
 
 export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
   const { cartItems, cartTotal, clearCart } = useCart();
@@ -18,6 +18,7 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
 
   const [shippingInfo, setShippingInfo] = useState({
     name: user?.name || '',
+    email: user?.email || '',
     phone: user?.phone || '',
     street: user?.address?.street || '',
     city: user?.address?.city || '',
@@ -142,16 +143,20 @@ export default function CheckoutModal({ isOpen, onClose, onOrderCompleted }) {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Phone Number</label>
-                  <input
-                    type="text"
-                    value={shippingInfo.phone}
-                    onChange={(e) => {
-                      setShippingInfo({ ...shippingInfo, phone: e.target.value });
-                      setShippingError('');
-                    }}
-                    placeholder="+251..."
-                  />
+                  <label>Email Address</label>
+                  <div className="input-with-icon">
+                    <Mail size={16} />
+                    <input
+                      type="email"
+                      value={shippingInfo.email}
+                      onChange={(e) => {
+                        setShippingInfo({ ...shippingInfo, email: e.target.value });
+                        setShippingError('');
+                      }}
+                      placeholder="name@example.com"
+                      required
+                    />
+                  </div>
                 </div>
                 <div className="form-group">
                   <label>Street Address</label>

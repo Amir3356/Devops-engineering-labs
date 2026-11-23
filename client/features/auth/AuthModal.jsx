@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { loginSchema, registerSchema } from '../../utils/validators';
-import { X, ShieldAlert, CheckCircle2, User, Lock, Phone } from 'lucide-react';
+import { X, ShieldAlert, CheckCircle2, User, Lock, Mail } from 'lucide-react';
 
 export default function AuthModal({ isOpen, onClose }) {
   const { login, register } = useAuth();
@@ -10,10 +10,10 @@ export default function AuthModal({ isOpen, onClose }) {
   const [successMsg, setSuccessMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Form State
+  // Form State: Email-based authentication
   const [formData, setFormData] = useState({
     name: '',
-    phone: '',
+    email: '',
     password: '',
     confirmPassword: ''
   });
@@ -33,9 +33,8 @@ export default function AuthModal({ isOpen, onClose }) {
 
     try {
       if (isLoginMode) {
-        // Zod validation for login
         const result = loginSchema.safeParse({
-          phone: formData.phone,
+          email: formData.email,
           password: formData.password
         });
         if (!result.success) {
@@ -44,10 +43,9 @@ export default function AuthModal({ isOpen, onClose }) {
           return;
         }
 
-        await login(formData.phone, formData.password);
+        await login(formData.email, formData.password);
         onClose();
       } else {
-        // Zod validation for register
         const result = registerSchema.safeParse(formData);
         if (!result.success) {
           setErrorMsg(result.error.issues[0]?.message || 'Invalid registration details');
@@ -57,12 +55,12 @@ export default function AuthModal({ isOpen, onClose }) {
 
         await register({
           name: formData.name,
-          phone: formData.phone,
+          email: formData.email,
           password: formData.password,
           confirmPassword: formData.confirmPassword
         });
-        setSuccessMsg('Account created successfully! JWT issued.');
-        setTimeout(() => onClose(), 800);
+        setSuccessMsg('Account created successfully!');
+        setTimeout(() => onClose(), 1200);
       }
     } catch (err) {
       setErrorMsg(err.message || 'Authentication error');
@@ -72,13 +70,18 @@ export default function AuthModal({ isOpen, onClose }) {
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-content auth-modal-box" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-backdrop">
+      <div className="modal-content auth-modal">
         <button className="modal-close-btn" onClick={onClose}>
           <X size={20} />
         </button>
 
-        {/* Tab Switcher */}
+        <div className="auth-modal-header">
+          <h2>{isLoginMode ? 'Welcome Back' : 'Create Account'}</h2>
+          <p>{isLoginMode ? 'Sign in with your email to continue' : 'Sign up to start shopping'}</p>
+        </div>
+
+        {/* Tab switcher */}
         <div className="auth-tab-row">
           <button
             type="button"
@@ -92,7 +95,7 @@ export default function AuthModal({ isOpen, onClose }) {
             className={`auth-tab-btn ${!isLoginMode ? 'active' : ''}`}
             onClick={() => { setIsLoginMode(false); setErrorMsg(''); }}
           >
-            Register Account
+            Register
           </button>
         </div>
 
@@ -110,9 +113,7 @@ export default function AuthModal({ isOpen, onClose }) {
           </div>
         )}
 
-        {/* Form: Phone-based Authentication */}
         <form onSubmit={handleSubmit} className="auth-form">
-          {/* Register Mode: Full Name */}
           {!isLoginMode && (
             <div className="form-group">
               <label>Full Name</label>
@@ -121,7 +122,7 @@ export default function AuthModal({ isOpen, onClose }) {
                 <input
                   type="text"
                   name="name"
-                  placeholder="e.g. John Doe"
+                  placeholder="e.g. Abebe Bikila"
                   value={formData.name}
                   onChange={handleChange}
                   required
@@ -130,23 +131,23 @@ export default function AuthModal({ isOpen, onClose }) {
             </div>
           )}
 
-          {/* Both Modes: Phone Number */}
+          {/* Email Address Field */}
           <div className="form-group">
-            <label>Phone Number</label>
+            <label>Email Address</label>
             <div className="input-with-icon">
-              <Phone size={16} />
+              <Mail size={16} />
               <input
-                type="tel"
-                name="phone"
-                placeholder="e.g. +15551234567"
-                value={formData.phone}
+                type="email"
+                name="email"
+                placeholder="name@example.com"
+                value={formData.email}
                 onChange={handleChange}
                 required
+                autoComplete="email"
               />
             </div>
           </div>
 
-          {/* Both Modes: Password */}
           <div className="form-group">
             <label>Password</label>
             <div className="input-with-icon">
@@ -158,11 +159,11 @@ export default function AuthModal({ isOpen, onClose }) {
                 value={formData.password}
                 onChange={handleChange}
                 required
+                autoComplete={isLoginMode ? 'current-password' : 'new-password'}
               />
             </div>
           </div>
 
-          {/* Register Mode: Confirm Password */}
           {!isLoginMode && (
             <div className="form-group">
               <label>Confirm Password</label>
@@ -171,17 +172,25 @@ export default function AuthModal({ isOpen, onClose }) {
                 <input
                   type="password"
                   name="confirmPassword"
-                  placeholder="Re-enter password"
+                  placeholder="••••••••"
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   required
+                  autoComplete="new-password"
                 />
               </div>
             </div>
           )}
 
-          <button type="submit" className="auth-submit-btn" disabled={isLoading}>
-            {isLoading ? 'Authenticating with JWT...' : isLoginMode ? 'Sign In' : 'Create Account'}
+          <button
+            type="submit"
+            className="auth-submit-btn"
+            disabled={isLoading}
+          >
+            {isLoading
+              ? (isLoginMode ? 'Signing in...' : 'Registering...')
+              : (isLoginMode ? 'Sign In' : 'Create Account')
+            }
           </button>
         </form>
       </div>

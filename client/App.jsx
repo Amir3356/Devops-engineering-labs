@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { BrowserRouter, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AbilityProvider } from './context/AbilityContext';
-import { CartProvider } from './context/CartContext';
+import { CartProvider, useCart } from './context/CartContext';
 import { EventProvider } from './context/EventContext';
 import Navbar from './components/Navbar';
 import EventStreamDrawer from './components/EventStreamDrawer';
@@ -14,13 +14,15 @@ import './App.css';
 
 function MainApp() {
   const { user, isAdmin } = useAuth();
+  const { isCartOpen, setIsCartOpen, openCart, closeCart } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
 
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+
+  const isCustomerDashboard = location.pathname.startsWith('/dashboard');
 
   // Auto-redirect if role changes
   React.useEffect(() => {
@@ -33,15 +35,17 @@ function MainApp() {
 
   return (
     <div className="app-shell">
-      {/* Top Navigation */}
-      <Navbar
-        onOpenAuth={() => setIsAuthOpen(true)}
-        onOpenCart={() => setIsCartOpen(true)}
-      />
+      {/* Top Header Navigation - Excluded on Customer RBAC Dashboard */}
+      {!isCustomerDashboard && (
+        <Navbar
+          onOpenAuth={() => setIsAuthOpen(true)}
+          onOpenCart={openCart}
+        />
+      )}
 
       {/* Main Viewport via React Router */}
-      <main className="main-viewport">
-        <AppRoutes onSelectProduct={(prod) => setSelectedProduct(prod)} />
+      <main className={`main-viewport ${isCustomerDashboard ? 'dashboard-viewport' : ''}`}>
+        <AppRoutes />
       </main>
 
       {/* Footer */}
@@ -67,9 +71,9 @@ function MainApp() {
 
       <CartDrawer
         isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
+        onClose={closeCart}
         onProceedToCheckout={() => {
-          setIsCartOpen(false);
+          closeCart();
           setIsCheckoutOpen(true);
         }}
       />
