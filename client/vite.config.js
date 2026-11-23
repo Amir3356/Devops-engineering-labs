@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     port: 3000,
     strictPort: true,
-    host: true,
+    host: 'localhost',
     proxy: {
       '/uploads': 'http://localhost:5000'
     }
