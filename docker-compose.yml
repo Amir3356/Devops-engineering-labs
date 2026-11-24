@@ -151,6 +151,8 @@ services:
     environment:
       PORT: 5004
       ORDER_DB_URL: postgresql://postgres:postgres@postgres:5432/order_db
+      INVENTORY_SERVICE_URL: http://inventory-service:5006
+      NOTIFICATION_SERVICE_URL: http://notification-service:5007
       JWT_SECRET: ecommerce-microservices-secret-key-2026
       DB_POOL_MAX: 20
       DB_POOL_IDLE_TIMEOUT: 30000
@@ -175,6 +177,8 @@ services:
     environment:
       PORT: 5005
       SALE_DB_URL: postgresql://postgres:postgres@postgres:5432/sale_db
+      INVENTORY_SERVICE_URL: http://inventory-service:5006
+      NOTIFICATION_SERVICE_URL: http://notification-service:5007
       JWT_SECRET: ecommerce-microservices-secret-key-2026
       DB_POOL_MAX: 20
       DB_POOL_IDLE_TIMEOUT: 30000
@@ -220,6 +224,9 @@ services:
       dockerfile: notification-service/Dockerfile
     container_name: notification-service
     restart: unless-stopped
+    # SMTP settings (SMTP_USER / SMTP_APP_PASSWORD …) come from server/.env — never hard-coded here
+    env_file:
+      - ./server/.env
     environment:
       PORT: 5007
       NOTIFICATION_DB_URL: postgresql://postgres:postgres@postgres:5432/notification_db

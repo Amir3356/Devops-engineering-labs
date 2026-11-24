@@ -46,15 +46,22 @@ export const createProductSchema = z.object({
 // ==========================================
 export const createOrderSchema = z.object({
   customerId: z.string().optional().nullable(),
-  customerPhone: z.string().min(6, 'Valid customer phone is required'),
+  customerPhone: z.string().optional().nullable(),
+  customerEmail: z.string().email().optional().nullable(),
   items: z.array(z.object({
     productId: z.string(),
     title: z.string().optional(),
+    category: z.string().optional(),
     price: z.coerce.number().positive(),
     quantity: z.coerce.number().int().positive()
   })).min(1, 'Order must contain at least one item'),
   totalAmount: z.coerce.number().positive(),
-  shippingAddress: z.record(z.any())
+  shippingAddress: z.record(z.any()),
+  // validateBody keeps only fields listed here, so payment fields must be declared
+  customerName: z.string().optional().nullable(),
+  status: z.enum(['Pending', 'Paid', 'Processing', 'Shipped', 'Delivered', 'Cancelled']).optional(),
+  paymentStatus: z.string().optional().nullable(),
+  paymentId: z.string().optional().nullable()
 });
 
 /**

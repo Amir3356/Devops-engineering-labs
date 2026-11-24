@@ -1,4 +1,5 @@
 import orderService from '../services/order.service.js';
+import { queueOrderReceipt } from '../services/receiptEmail.js';
 import { success, error } from '../../utils/response.js';
 
 /**
@@ -27,9 +28,26 @@ class OrderController {
         status
       });
 
-      return success(res, order.toJSON(), 'Order created successfully', 201);
+      // Receipt goes to the email the customer signed up with (from the verified token via the gateway)
+      const json = order.toJSON();
+      let notification = { status: 'skipped', reason: 'Order is not paid' };
+      if (String(json.status).toLowerCase() === 'paid' || ['paid', 'completed'].includes(String(json.paymentStatus).toLowerCase())) {
+        let customerName = '';
+        try {
+          customerName = decodeURIComponent(req.headers['x-user-name'] || '');
+        } catch {
+          customerName = '';
+        }
+        notification = queueOrderReceipt({
+          to: req.headers['x-user-email'],
+          customerName: customerName || req.body.customerName,
+          order: json
+        });
+      }
+
+      return success(res, { ...json, notification }, 'Order created successfully', 201);
     } catch (err) {
-      return error(res, err.message, 400);
+      return error(res, err.message, err.status || 400);
     }
   }
 

@@ -4,6 +4,7 @@ import TanStackDataTable from '../../components/TanStackDataTable';
 import { useEvents } from '../../context/EventContext';
 import { useAuth } from '../../context/AuthContext';
 import { getPolicyApi, updatePolicyApi, resetPolicyApi, INVENTORY_ALERTS_POLICY } from '../../api/policy.api';
+import { subscribeRealtime } from '../../services/realtime.service';
 import { productSchema } from '../../utils/validators';
 import orderService from '../../services/order.service';
 import {
@@ -18,7 +19,8 @@ import {
 import {
   getAllStockApi,
   updateStockApi,
-  replenishStockApi
+  replenishStockApi,
+  deleteStockApi
 } from '../../api/inventory.api';
 import {
   getPurchasesApi,
@@ -203,23 +205,33 @@ export default function AdminDashboard() {
   const [isSubmittingStock, setIsSubmittingStock] = useState(false);
   // Add Stock modal (stock in a paid purchase batch)
   const [isAddStockModalOpen, setIsAddStockModalOpen] = useState(false);
-  const [addStockForm, setAddStockForm] = useState({ purchaseId: '', expiresAt: '' });
+  const [addStockForm, setAddStockForm] = useState({ purchaseId: '', expiresAt: '', totalSellingPrice: '' });
   const [addStockError, setAddStockError] = useState('');
   const [isSubmittingAddStock, setIsSubmittingAddStock] = useState(false);
 
-  // Purchase State & Filter
-  const [purchases, setPurchases] = useState(() => {
-    const saved = localStorage.getItem('nexus_admin_purchases');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch {
-        // ignore
-      }
-    }
-    return [];
+  // Edit Stock modal (matches Add Stock layout from screenshot)
+  const [isEditStockModalOpen, setIsEditStockModalOpen] = useState(false);
+  const [editStockError, setEditStockError] = useState('');
+  const [isSubmittingEditStock, setIsSubmittingEditStock] = useState(false);
+  const [editStockForm, setEditStockForm] = useState({
+    productId: '',
+    batchId: '',
+    productName: '',
+    category: '',
+    stockQuantity: '',
+    expiresAt: '',
+    totalSellingPrice: ''
   });
+
+  // Unit selling price is derived: total selling price ÷ quantity (null until both are valid)
+  const editStockUnitSellingPrice = (() => {
+    const total = parseFloat(editStockForm.totalSellingPrice);
+    const qty = parseInt(editStockForm.stockQuantity, 10);
+    return total > 0 && qty > 0 ? Math.round((total / qty) * 100) / 100 : null;
+  })();
+
+  // Purchase State & Filter
+  const [purchases, setPurchases] = useState([]);
   const [purchaseQuery, setPurchaseQuery] = useState('');
   const [purchaseCategory, setPurchaseCategory] = useState('All');
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
@@ -228,8 +240,8 @@ export default function AdminDashboard() {
   const [purchaseForm, setPurchaseForm] = useState({
     batchId: '',
     productName: '',
-    category: 'Electronics',
-    quantity: '20',
+    category: '',
+    quantity: '',
     supplier: '',
     totalCost: ''
   });
@@ -256,6 +268,8 @@ export default function AdminDashboard() {
     customerPhone: ''
   });
 
+  const [sales, setSales] = useState([]);
+
   // Fetch all live microservices data
   const fetchAllData = () => {
     return Promise.allSettled([
@@ -263,8 +277,16 @@ export default function AdminDashboard() {
       getCategoriesApi(),
       getAllStockApi(),
       orderService.fetchAllAdminOrders(),
-      getPurchasesApi()
-    ]).then(([prodRes, catRes, invRes, ordsRes, purchRes]) => {
+      getPurchasesApi(),
+      getSalesApi()
+    ]).then(([prodRes, catRes, invRes, ordsRes, purchRes, salesRes]) => {
+      // Sales recorded by the admin (sale-service) — customer payments live in Customer Orders
+      if (salesRes.status === 'fulfilled' && salesRes.value?.success && Array.isArray(salesRes.value.data)) {
+        setSales(salesRes.value.data);
+      } else {
+        setSales([]);
+      }
+
       if (prodRes.status === 'fulfilled' && prodRes.value?.success && Array.isArray(prodRes.value.data)) {
         setProducts(prodRes.value.data);
       } else {
@@ -290,15 +312,41 @@ export default function AdminDashboard() {
       }
 
       if (purchRes.status === 'fulfilled' && purchRes.value?.success && Array.isArray(purchRes.value.data)) {
-        if (purchRes.value.data.length > 0) {
-          setPurchases(purchRes.value.data);
-          localStorage.setItem('nexus_admin_purchases', JSON.stringify(purchRes.value.data));
-        }
+        setPurchases(purchRes.value.data);
+      } else {
+        setPurchases([]);
       }
     });
   };
 
+  // Customer payments and other admins' changes arrive over the gateway WebSocket:
+  // reload so Current Stock and Customer Orders always show the live server data.
   useEffect(() => {
+    let reloadTimer = null;
+    let hasConnectedBefore = false;
+    const scheduleReload = () => {
+      clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(() => fetchAllData(), 300);
+    };
+    const unsubscribe = subscribeRealtime((event) => {
+      if (['orders.updated', 'catalog.updated', 'sales.updated'].includes(event.type)) scheduleReload();
+      if (event.type === 'connection.open') {
+        if (hasConnectedBefore) scheduleReload();
+        hasConnectedBefore = true;
+      }
+    });
+    return () => {
+      clearTimeout(reloadTimer);
+      unsubscribe();
+    };
+  }, []); // subscribe once; fetchAllData reads fresh state when it runs
+
+  useEffect(() => {
+    try {
+      localStorage.removeItem('nexus_admin_purchases');
+    } catch {
+      // ignore
+    }
     fetchAllData().finally(() => {
       setIsLoading(false);
     });
@@ -327,11 +375,10 @@ export default function AdminDashboard() {
   ).length;
 
   // Sales Analytics Metrics
-  const totalSalesRevenue = useMemo(() => {
-    return orders
-      .filter((o) => o.status !== 'Cancelled')
-      .reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
-  }, [orders]);
+  const totalSalesRevenue = useMemo(
+    () => sales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0),
+    [sales]
+  );
 
   const totalItemsSold = useMemo(() => {
     return orders
@@ -641,6 +688,83 @@ export default function AdminDashboard() {
     setIsAdjustModalOpen(true);
   };
 
+  const handleDeleteInventory = async (productId) => {
+    if (window.confirm('Are you sure you want to delete this inventory item?')) {
+      try {
+        await deleteStockApi(productId);
+      } catch (err) {
+        console.warn('Backend delete failed, removing locally:', err.message);
+      }
+      setInventory((prev) => prev.filter((item) => String(item.productId) !== String(productId)));
+      toast.success('Inventory item deleted successfully!');
+    }
+  };
+
+  const handleOpenEditStock = (item) => {
+    setEditStockError('');
+    setEditStockForm({
+      productId: item.productId,
+      batchId: item.batchId || item.batch_id || '',
+      productName: item.productName || item.product_name || '',
+      category: item.category || '',
+      stockQuantity: String(item.stockQuantity ?? item.stock_quantity ?? ''),
+      expiresAt: item.expiresAt || item.expires_at || '',
+      totalSellingPrice: item.totalSellingPrice != null ? String(Number(item.totalSellingPrice)) : ''
+    });
+    setIsEditStockModalOpen(true);
+  };
+
+  const handleSubmitEditStock = async (e) => {
+    e.preventDefault();
+    setEditStockError('');
+    const qty = parseInt(editStockForm.stockQuantity, 10);
+    if (isNaN(qty) || qty < 0) {
+      setEditStockError('Quantity must be a non-negative number.');
+      return;
+    }
+    const totalSellingPrice = Math.round(parseFloat(editStockForm.totalSellingPrice) * 100) / 100;
+    if (!(totalSellingPrice > 0)) {
+      setEditStockError('Total selling price must be greater than 0.');
+      return;
+    }
+    if (qty <= 0) {
+      setEditStockError('Quantity must be greater than 0 to set a selling price.');
+      return;
+    }
+
+    setIsSubmittingEditStock(true);
+    try {
+      // The inventory service derives the unit selling price (total ÷ quantity)
+      await updateStockApi(editStockForm.productId, qty, {
+        productName: editStockForm.productName,
+        category: editStockForm.category,
+        batchId: editStockForm.batchId,
+        expiresAt: editStockForm.expiresAt || null,
+        totalSellingPrice
+      });
+
+      addLocalEvent({
+        type: 'StockUpdated',
+        productId: editStockForm.productId,
+        productName: editStockForm.productName,
+        quantity: qty,
+        batchId: editStockForm.batchId,
+        expiresAt: editStockForm.expiresAt,
+        timestamp: new Date().toISOString()
+      });
+
+      setIsEditStockModalOpen(false);
+      fetchAllData();
+      toast.success('Inventory stock updated successfully!');
+    } catch (err) {
+      const msg = err.message || 'Failed to update inventory stock';
+      setEditStockError(msg);
+      toast.error(msg);
+    } finally {
+      setIsSubmittingEditStock(false);
+    }
+  };
+
   // "Add Stock": put a paid purchase batch into inventory.
   // Batches already stocked are marked 'Stocked' on the purchase, so they drop out of this list.
   const stockableBatches = useMemo(
@@ -655,10 +779,15 @@ export default function AdminDashboard() {
     ? products.find((p) => p.name === selectedBatch.productName) || null
     : null;
   const todayIso = new Date().toISOString().slice(0, 10);
+  const addStockUnitSellingPrice = (() => {
+    const total = parseFloat(addStockForm.totalSellingPrice);
+    const qty = parseInt(selectedBatch?.quantity, 10);
+    return total > 0 && qty > 0 ? Math.round((total / qty) * 100) / 100 : null;
+  })();
 
   const handleOpenAddStock = () => {
     setAddStockError('');
-    setAddStockForm({ purchaseId: stockableBatches[0]?.id || '', expiresAt: '' });
+    setAddStockForm({ purchaseId: stockableBatches[0]?.id || '', expiresAt: '', totalSellingPrice: '' });
     setIsAddStockModalOpen(true);
   };
 
@@ -679,13 +808,21 @@ export default function AdminDashboard() {
       return;
     }
 
+    const totalSellingPrice = Math.round(parseFloat(addStockForm.totalSellingPrice) * 100) / 100;
+    if (!(totalSellingPrice > 0)) {
+      setAddStockError('Total selling price must be greater than 0.');
+      return;
+    }
+
     setIsSubmittingAddStock(true);
     try {
+      // The inventory service derives the unit selling price (total ÷ quantity)
       await replenishStockApi(selectedBatchProduct.id, quantity, {
         productName: selectedBatchProduct.name,
         category: selectedBatch.category || selectedBatchProduct.category,
         batchId: selectedBatch.batchId,
-        expiresAt: addStockForm.expiresAt || undefined
+        expiresAt: addStockForm.expiresAt || undefined,
+        totalSellingPrice
       });
       // Mark the batch as stocked so it can't be added twice
       try {
@@ -839,7 +976,6 @@ export default function AdminDashboard() {
       }
       const updated = purchases.filter((p) => p.id !== id);
       setPurchases(updated);
-      localStorage.setItem('nexus_admin_purchases', JSON.stringify(updated));
       toast.success('Purchase record deleted!');
     }
   };
@@ -889,7 +1025,6 @@ export default function AdminDashboard() {
           : p
       );
       setPurchases(updated);
-      localStorage.setItem('nexus_admin_purchases', JSON.stringify(updated));
     } else {
       const newPurchase = {
         id: `pur-${Date.now()}`,
@@ -909,7 +1044,6 @@ export default function AdminDashboard() {
       }
       const updated = [newPurchase, ...purchases];
       setPurchases(updated);
-      localStorage.setItem('nexus_admin_purchases', JSON.stringify(updated));
       addLocalEvent({
         type: 'InventoryProcured',
         productName: newPurchase.productName,
@@ -1028,6 +1162,13 @@ export default function AdminDashboard() {
     }));
   };
 
+  // Add Sale shows the price the server will charge: the inventory unit selling price
+  const saleStockRow = inventory.find((i) => String(i.productId) === String(saleForm.productId)) || null;
+  const saleUnitSellingPrice =
+    saleStockRow && saleStockRow.unitSellingPrice != null ? Number(saleStockRow.unitSellingPrice) : null;
+  const saleQty = parseInt(saleForm.quantity, 10);
+  const saleTotalPrice = saleUnitSellingPrice !== null && saleQty > 0 ? saleUnitSellingPrice * saleQty : null;
+
   const handleSaveSale = async (e) => {
     e.preventDefault();
     setSaleFormError('');
@@ -1037,82 +1178,59 @@ export default function AdminDashboard() {
       setSaleFormError('Quantity must be greater than 0.');
       return;
     }
-
-    const selectedProduct = products.find((p) => p.id === saleForm.productId) || products[0];
-    const unitPrice = selectedProduct ? Number(selectedProduct.price) : 0;
-    const totalAmount = unitPrice * qty;
-    const orderId = `ord-${Date.now().toString().slice(-6)}`;
+    const customerEmail = saleForm.customerEmail.trim();
+    if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
+      setSaleFormError('Customer email is not a valid email address.');
+      return;
+    }
+    const selectedProduct = products.find((p) => p.id === saleForm.productId);
+    if (!selectedProduct) {
+      setSaleFormError('Select a product.');
+      return;
+    }
+    if (saleUnitSellingPrice === null) {
+      setSaleFormError('This product has no unit selling price yet. Set it in Inventory (Add Stock or Edit Stock) first.');
+      return;
+    }
 
     setIsSubmittingSale(true);
     try {
-      const orderPayload = {
-        orderId,
-        batchId: saleForm.batchId || 'BAT-001-2026',
-        category: saleForm.category || selectedProduct?.category || 'General',
+      // sale-service takes the units from inventory (price = inventory unit selling price),
+      // saves the sale and emails the customer a receipt over SMTP
+      const res = await createSaleApi({
+        batchId: saleForm.batchId || '',
+        productId: selectedProduct.id,
+        productName: selectedProduct.name,
+        category: saleForm.category || selectedProduct.category || 'General',
+        quantity: qty,
         customerName: saleForm.customerName.trim() || 'Direct Customer',
-        customerEmail: saleForm.customerEmail.trim() || 'direct@example.com',
-        customerPhone: saleForm.customerPhone.trim() || 'N/A',
-        items: [
-          {
-            productId: selectedProduct ? selectedProduct.id : `prod-${Date.now()}`,
-            title: selectedProduct ? selectedProduct.name : saleForm.productName || 'Direct Sale Item',
-            batchId: saleForm.batchId || 'BAT-001-2026',
-            category: saleForm.category || selectedProduct?.category || 'General',
-            price: unitPrice,
-            quantity: qty,
-            subtotal: totalAmount
-          }
-        ],
-        totalAmount,
-        status: 'Delivered',
-        paymentStatus: 'Paid',
-        createdAt: new Date().toISOString()
-      };
+        customerEmail,
+        customerPhone: saleForm.customerPhone.trim()
+      });
+      const sale = res?.data || {};
 
-      await orderService.recordCompletedOrder(orderPayload, `pay-${Date.now().toString().slice(-6)}`);
-
-      // Persist to Sale Service (Port 5005)
-      try {
-        await createSaleApi({
-          saleId: orderId,
-          batchId: saleForm.batchId || 'BAT-001-2026',
-          productId: selectedProduct ? selectedProduct.id : `prod-${Date.now()}`,
-          productName: selectedProduct ? selectedProduct.name : saleForm.productName || 'Direct Sale Item',
-          category: saleForm.category || selectedProduct?.category || 'General',
-          quantity: qty,
-          unitPrice,
-          totalAmount,
-          customerName: orderPayload.customerName,
-          customerEmail: orderPayload.customerEmail,
-          customerPhone: orderPayload.customerPhone
-        });
-      } catch (saleErr) {
-        console.warn('[AdminDashboard] Backend sale-service record failed:', saleErr.message);
-      }
-
-      if (selectedProduct?.id) {
-        try {
-          await replenishStockApi(selectedProduct.id, -qty);
-        } catch (stockErr) {
-          console.warn('[AdminDashboard] Could not update stock on direct sale:', stockErr);
-        }
-      }
-
-      addLocalEvent('DirectSaleCompleted', 'order-service', {
-        orderId,
-        batchId: saleForm.batchId,
-        category: saleForm.category,
-        customerName: orderPayload.customerName,
-        totalAmount,
-        itemsCount: qty
+      addLocalEvent('DirectSaleCompleted', 'sale-service', {
+        saleId: sale.saleId,
+        productName: selectedProduct.name,
+        quantity: qty,
+        totalAmount: sale.totalAmount
       });
 
-      toast.success(`Direct Sale #${orderId} of $${totalAmount.toFixed(2)} recorded!`);
       setIsSaleModalOpen(false);
       fetchAllData();
+
+      const amount = `$${(Number(sale.totalAmount) || 0).toFixed(2)}`;
+      const note = sale.notification || {};
+      if (note.status === 'sent' || note.status === 'queued') {
+        toast.success(`Sale ${sale.saleId} recorded — ${amount}`, { description: `A receipt is on its way to ${note.to}` });
+      } else if (note.status === 'failed') {
+        toast.warning(`Sale ${sale.saleId} recorded — ${amount}`, { description: `Receipt email not sent: ${note.reason}` });
+      } else {
+        toast.success(`Sale ${sale.saleId} recorded — ${amount}`, { description: 'No customer email given, so no receipt was sent.' });
+      }
     } catch (err) {
       setSaleFormError(err.message || 'Failed to record sale transaction.');
-      toast.error(err.message || 'Failed to record sale transaction.');
+      toast.error('Sale not recorded', { description: err.message || 'Failed to record sale transaction.' });
     } finally {
       setIsSubmittingSale(false);
     }
@@ -1233,6 +1351,12 @@ export default function AdminDashboard() {
     [purchasedProductNames]
   );
 
+  // Purchase costs for each inventory row come from the purchase batch it was stocked from
+  const purchaseByBatchId = useMemo(
+    () => new Map(purchases.filter((p) => p.batchId).map((p) => [String(p.batchId), p])),
+    [purchases]
+  );
+
   const inventoryColumns = useMemo(
     () => [
       {
@@ -1287,6 +1411,56 @@ export default function AdminDashboard() {
             >
               {qty} units
             </span>
+          );
+        }
+      },
+      {
+        header: 'Unit Purchase Price',
+        id: 'unitPurchasePrice',
+        cell: ({ row }) => {
+          const purchase = purchaseByBatchId.get(String(row.original.batchId || ''));
+          const value = purchase ? Number(purchase.unitCost) : NaN;
+          return Number.isFinite(value) && value > 0 ? (
+            <span className="font-semibold">${value.toFixed(2)}</span>
+          ) : (
+            <span className="text-muted" title="No purchase batch recorded for this row">—</span>
+          );
+        }
+      },
+      {
+        header: 'Total Purchase Cost',
+        id: 'totalPurchaseCost',
+        cell: ({ row }) => {
+          const purchase = purchaseByBatchId.get(String(row.original.batchId || ''));
+          const value = purchase ? Number(purchase.totalCost) : NaN;
+          return Number.isFinite(value) && value > 0 ? (
+            <span className="font-semibold">${value.toFixed(2)}</span>
+          ) : (
+            <span className="text-muted" title="No purchase batch recorded for this row">—</span>
+          );
+        }
+      },
+      {
+        header: 'Unit Selling Price',
+        id: 'unitSellingPrice',
+        cell: ({ row }) => {
+          const value = row.original.unitSellingPrice;
+          return value == null ? (
+            <span className="text-muted">Not set</span>
+          ) : (
+            <span className="font-semibold">${Number(value).toFixed(2)}</span>
+          );
+        }
+      },
+      {
+        header: 'Total Selling Price',
+        id: 'totalSellingPrice',
+        cell: ({ row }) => {
+          const value = row.original.totalSellingPrice;
+          return value == null ? (
+            <span className="text-muted">Not set</span>
+          ) : (
+            <span className="font-semibold">${Number(value).toFixed(2)}</span>
           );
         }
       },
@@ -1372,9 +1546,35 @@ export default function AdminDashboard() {
             </span>
           );
         }
+      },
+      {
+        header: 'Action',
+        id: 'action',
+        cell: ({ row }) => (
+          <div className="table-actions">
+            <button
+              type="button"
+              className="btn-table-edit"
+              onClick={() => handleOpenEditStock(row.original)}
+              title="Edit Stock"
+              aria-label={`Edit ${row.original.productName}`}
+            >
+              <Edit2 size={14} />
+            </button>
+            <button
+              type="button"
+              className="btn-table-delete"
+              onClick={() => handleDeleteInventory(row.original.productId)}
+              title="Delete Inventory Item"
+              aria-label={`Delete ${row.original.productName}`}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        )
       }
     ],
-    [products, effectiveLowStockThreshold, effectiveExpiryWarningDays, alertSettings]
+    [products, effectiveLowStockThreshold, effectiveExpiryWarningDays, alertSettings, purchaseByBatchId]
   );
 
   const orderColumns = useMemo(
@@ -1399,6 +1599,27 @@ export default function AdminDashboard() {
           row.original.customerId
       },
       {
+        header: 'Product',
+        id: 'orderProducts',
+        cell: ({ row }) => (
+          <div className="order-item-lines">
+            {(row.original.items || []).map((item, idx) => (
+              <div key={idx}>
+                <span className="font-semibold">{item.quantity}×</span> {item.title || item.name || item.productId}
+              </div>
+            ))}
+          </div>
+        )
+      },
+      {
+        header: 'Category',
+        id: 'orderCategories',
+        cell: ({ row }) => {
+          const cats = [...new Set((row.original.items || []).map((i) => i.category).filter(Boolean))];
+          return cats.length ? cats.map((c) => <span key={c} className="cat-tag">{c}</span>) : <span className="text-muted">—</span>;
+        }
+      },
+      {
         header: 'Total',
         id: 'total',
         cell: ({ row }) => (
@@ -1417,7 +1638,7 @@ export default function AdminDashboard() {
         )
       },
       {
-        header: 'Change Status',
+        header: '',
         id: 'changeStatus',
         cell: ({ row }) => (
           <select
@@ -1442,65 +1663,58 @@ export default function AdminDashboard() {
   const salesColumns = useMemo(
     () => [
       {
-        header: 'Transaction ID',
+        header: 'Sale ID',
         id: 'saleId',
-        cell: ({ row }) => (
-          <code style={{ fontWeight: 700, color: 'var(--primary-color)' }}>
-            #{row.original.orderId || row.original.id}
-          </code>
-        )
+        cell: ({ row }) => <code className="cat-slug font-mono">#{row.original.saleId || row.original.id}</code>
       },
       {
         header: 'Date',
-        id: 'saleDate',
+        id: 'date',
         cell: ({ row }) => new Date(row.original.createdAt).toLocaleDateString()
       },
       {
-        header: 'Customer Name',
+        header: 'Customer',
         id: 'customer',
-        cell: ({ row }) =>
-          row.original.customerName ||
-          row.original.shippingAddress?.name ||
-          row.original.customerEmail ||
-          row.original.customerId
+        cell: ({ row }) => (
+          <div>
+            <div className="font-semibold">{row.original.customerName || 'Direct Customer'}</div>
+            {row.original.customerEmail && <div className="text-muted text-xs">{row.original.customerEmail}</div>}
+          </div>
+        )
       },
       {
-        header: 'Items',
-        id: 'itemsSold',
-        cell: ({ row }) => {
-          const items = Array.isArray(row.original.items) ? row.original.items : [];
-          const count = items.reduce((sum, i) => sum + (Number(i.quantity) || 1), 0);
-          return (
-            <span style={{ fontSize: '0.88rem' }}>
-              <strong>{count}</strong> {count === 1 ? 'unit' : 'units'}
-            </span>
-          );
-        }
+        header: 'Product',
+        id: 'product',
+        cell: ({ row }) => <span className="font-semibold">{row.original.productName}</span>
+      },
+      {
+        header: 'Category',
+        id: 'category',
+        cell: ({ row }) => (row.original.category ? <span className="cat-tag">{row.original.category}</span> : '—')
+      },
+      {
+        header: 'Qty',
+        id: 'quantity',
+        cell: ({ row }) => row.original.quantity
+      },
+      {
+        header: 'Unit Selling Price',
+        id: 'unitPrice',
+        cell: ({ row }) => `$${(Number(row.original.unitPrice) || 0).toFixed(2)}`
       },
       {
         header: 'Revenue',
-        id: 'saleAmount',
+        id: 'revenue',
         cell: ({ row }) => (
-          <span className="font-bold text-emerald" style={{ fontSize: '0.96rem' }}>
-            ${(Number(row.original.totalAmount) || 0).toFixed(2)}
-          </span>
+          <span className="font-semibold">${(Number(row.original.totalAmount) || 0).toFixed(2)}</span>
         )
       },
       {
         header: 'Payment Status',
-        id: 'payStatus',
+        id: 'paymentStatus',
         cell: ({ row }) => (
           <span className="status-badge paid">
             <CheckCircle2 size={13} /> {row.original.paymentStatus || 'Paid'}
-          </span>
-        )
-      },
-      {
-        header: 'Fulfillment',
-        id: 'fulfillmentStatus',
-        cell: ({ row }) => (
-          <span className={`status-badge ${(row.original.status || 'pending').toLowerCase()}`}>
-            {row.original.status || 'Pending'}
           </span>
         )
       }
@@ -2005,10 +2219,10 @@ export default function AdminDashboard() {
 
               {/* TanStack Table for Sales Ledger */}
               <TanStackDataTable
-                data={orders}
+                data={sales}
                 columns={salesColumns}
-                emptyMessage="No sales transactions recorded yet. Place customer orders to generate sales records."
-                footerText={`Sales Ledger • ${orders.length} Total Transaction(s) • Gross Volume: $${totalSalesRevenue.toFixed(2)}`}
+                emptyMessage='No sales recorded yet. Click "Add Sale" to record one.'
+                footerText={`Sales Ledger • ${sales.length} sale(s) • Gross Volume: $${totalSalesRevenue.toFixed(2)}`}
               />
             </div>
           )}
@@ -2599,12 +2813,155 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
+              <div className="form-row-2">
+                <div className="form-group">
+                  <label htmlFor="add-stock-total-selling">Total Selling Price</label>
+                  <input
+                    id="add-stock-total-selling"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="e.g. 1500.00"
+                    value={addStockForm.totalSellingPrice}
+                    onChange={(e) => setAddStockForm({ ...addStockForm, totalSellingPrice: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="add-stock-unit-selling">Unit Selling Price</label>
+                  <input
+                    id="add-stock-unit-selling"
+                    type="text"
+                    readOnly
+                    tabIndex={-1}
+                    value={addStockUnitSellingPrice !== null ? addStockUnitSellingPrice.toFixed(2) : ''}
+                    placeholder="Calculated automatically"
+                  />
+                  <span className="text-muted text-xs">Total selling price ÷ quantity — shown to customers</span>
+                </div>
+              </div>
+
               <div className="modal-footer-btns">
                 <button type="button" className="btn-cancel" onClick={() => setIsAddStockModalOpen(false)}>
                   Cancel
                 </button>
                 <button type="submit" className="btn-save" disabled={isSubmittingAddStock || !selectedBatch}>
                   {isSubmittingAddStock ? 'Adding...' : 'Add Stock'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Stock Modal (matches Add Stock layout from screenshot) */}
+      {isEditStockModalOpen && (
+        <div className="modal-backdrop" onClick={() => setIsEditStockModalOpen(false)}>
+          <div className="modal-content admin-form-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Edit Stock</h3>
+            <p className="text-muted text-sm">Update warehouse inventory batch details and stock.</p>
+
+            {editStockError && (
+              <div className="auth-alert error mb-3">
+                <AlertTriangle size={16} />
+                <span>{editStockError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitEditStock} className="admin-form">
+              <div className="form-group">
+                <label htmlFor="edit-stock-batch">Batch ID</label>
+                <input
+                  id="edit-stock-batch"
+                  type="text"
+                  value={editStockForm.batchId}
+                  readOnly
+                  placeholder="From the batch"
+                />
+              </div>
+
+              <div className="form-row-2">
+                <div className="form-group">
+                  <label htmlFor="edit-stock-product">Product</label>
+                  <input
+                    id="edit-stock-product"
+                    type="text"
+                    value={editStockForm.productName}
+                    placeholder="From the batch"
+                    readOnly
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="edit-stock-category">Category</label>
+                  <input
+                    id="edit-stock-category"
+                    type="text"
+                    value={editStockForm.category}
+                    onChange={(e) => setEditStockForm({ ...editStockForm, category: e.target.value })}
+                    placeholder="Category"
+                  />
+                </div>
+              </div>
+
+              <div className="form-row-2">
+                <div className="form-group">
+                  <label htmlFor="edit-stock-qty">Quantity</label>
+                  <input
+                    id="edit-stock-qty"
+                    type="number"
+                    min="0"
+                    value={editStockForm.stockQuantity}
+                    onChange={(e) => setEditStockForm({ ...editStockForm, stockQuantity: e.target.value })}
+                    placeholder="Stock quantity"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="edit-stock-expires">Expires At</label>
+                  <input
+                    id="edit-stock-expires"
+                    type="date"
+                    value={editStockForm.expiresAt}
+                    onChange={(e) => setEditStockForm({ ...editStockForm, expiresAt: e.target.value })}
+                  />
+                  <span className="text-muted text-xs">Leave empty if the product doesn't expire.</span>
+                </div>
+              </div>
+
+              <div className="form-row-2">
+                <div className="form-group">
+                  <label htmlFor="edit-stock-total-selling">Total Selling Price</label>
+                  <input
+                    id="edit-stock-total-selling"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="e.g. 1500.00"
+                    value={editStockForm.totalSellingPrice}
+                    onChange={(e) => setEditStockForm({ ...editStockForm, totalSellingPrice: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="edit-stock-unit-selling">Unit Selling Price</label>
+                  <input
+                    id="edit-stock-unit-selling"
+                    type="text"
+                    readOnly
+                    tabIndex={-1}
+                    value={editStockUnitSellingPrice !== null ? editStockUnitSellingPrice.toFixed(2) : ''}
+                    placeholder="Calculated automatically"
+                  />
+                  <span className="text-muted text-xs">Total selling price ÷ quantity — shown to customers</span>
+                </div>
+              </div>
+
+              <div className="modal-footer-btns">
+                <button type="button" className="btn-cancel" onClick={() => setIsEditStockModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-save" disabled={isSubmittingEditStock}>
+                  {isSubmittingEditStock ? 'Saving...' : 'Update Stock'}
                 </button>
               </div>
             </form>
@@ -2728,11 +3085,17 @@ export default function AdminDashboard() {
                     required
                   >
                     <option value="">-- Select Product --</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} — ${Number(p.price).toFixed(2)} ({p.stock} in stock)
-                      </option>
-                    ))}
+                    {products.map((p) => {
+                      // Price and stock live in Inventory, not on the product record
+                      const row = inventory.find((i) => String(i.productId) === String(p.id));
+                      const price = row?.unitSellingPrice != null ? `$${Number(row.unitSellingPrice).toFixed(2)}` : 'no price';
+                      const left = Number(row?.stockQuantity) || 0;
+                      return (
+                        <option key={p.id} value={p.id}>
+                          {p.name} — {price} ({left} in stock)
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -2785,6 +3148,35 @@ export default function AdminDashboard() {
                     onChange={(e) => setSaleForm({ ...saleForm, customerName: e.target.value })}
                     style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.92rem' }}
                     required
+                  />
+                </div>
+              </div>
+
+              {/* Prices (read-only — taken from Inventory) */}
+              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label htmlFor="sale-unit-selling" style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '2px' }}>Unit Selling Price</label>
+                  <input
+                    id="sale-unit-selling"
+                    type="text"
+                    readOnly
+                    tabIndex={-1}
+                    value={saleUnitSellingPrice !== null ? `$${saleUnitSellingPrice.toFixed(2)}` : ''}
+                    placeholder={saleForm.productId ? 'Not set in Inventory' : 'Select a product'}
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: '1px dashed var(--border-color)', fontSize: '0.92rem', background: 'var(--bg-secondary)', color: 'var(--text-main)', fontWeight: 600, cursor: 'default' }}
+                  />
+                  <span className="text-muted text-xs">From Inventory — edit it there</span>
+                </div>
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label htmlFor="sale-total-price" style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '2px' }}>Total</label>
+                  <input
+                    id="sale-total-price"
+                    type="text"
+                    readOnly
+                    tabIndex={-1}
+                    value={saleTotalPrice !== null ? `$${saleTotalPrice.toFixed(2)}` : ''}
+                    placeholder="Unit selling price × quantity"
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: '1px dashed var(--border-color)', fontSize: '0.92rem', background: 'var(--bg-secondary)', color: 'var(--text-main)', fontWeight: 600, cursor: 'default' }}
                   />
                 </div>
               </div>

@@ -1,5 +1,6 @@
 import orderRepository from '../repositories/order.repository.js';
 import OrderModel from '../models/order.model.js';
+import { deductStockForOrder, restoreStockForOrder } from './inventoryClient.js';
 
 /**
  * Order Domain Service
@@ -8,18 +9,43 @@ class OrderService {
   async createOrder({ customerId, customerPhone, items, totalAmount, shippingAddress, paymentId, paymentStatus, status }) {
     OrderModel.validate({ items, totalAmount });
 
-    const order = await orderRepository.create({
-      customerId,
-      customerPhone,
-      items,
-      totalAmount,
-      shippingAddress,
-      status: status || 'Pending',
-      paymentId: paymentId || null,
-      paymentStatus: paymentStatus || 'Pending'
-    });
+    // Keep only the fields the order needs, including the category for "My Orders"
+    const orderItems = items.map((i) => ({
+      productId: i.productId,
+      title: i.title || '',
+      category: i.category || '',
+      price: Number(i.price),
+      quantity: Number(i.quantity),
+      subtotal: Math.round(Number(i.price) * Number(i.quantity) * 100) / 100
+    }));
 
-    return order;
+    // A paid order must take its units out of stock first; if stock is short nothing is saved
+    const isPaid =
+      String(status || '').toLowerCase() === 'paid' ||
+      ['paid', 'completed'].includes(String(paymentStatus || '').toLowerCase());
+    if (isPaid) {
+      await deductStockForOrder(orderItems);
+    }
+
+    try {
+      return await orderRepository.create({
+        customerId,
+        customerPhone,
+        items: orderItems,
+        totalAmount,
+        shippingAddress,
+        status: status || 'Pending',
+        paymentId: paymentId || null,
+        paymentStatus: paymentStatus || 'Pending'
+      });
+    } catch (err) {
+      if (isPaid) {
+        await restoreStockForOrder(orderItems).catch((restoreErr) =>
+          console.error('[Order Service] Stock restore after failed save also failed:', restoreErr.message)
+        );
+      }
+      throw err;
+    }
   }
 
   async getOrderById(id, requestingUserId, requestingRole) {

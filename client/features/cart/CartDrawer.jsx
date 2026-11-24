@@ -1,10 +1,53 @@
+import { useState } from 'react';
+import { toast } from 'sonner';
 import { useCart } from '../../context/CartContext';
-import { X, Trash2, Plus, Minus, ArrowRight, ShoppingBag } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import orderService from '../../services/order.service';
+import { X, Trash2, Plus, Minus, ArrowRight, ShoppingBag, Loader2 } from 'lucide-react';
 
-export default function CartDrawer({ isOpen, onClose, onProceedToCheckout }) {
-  const { cartItems, updateQuantity, removeFromCart, cartTotal, clearCart } = useCart();
+export default function CartDrawer({ isOpen, onClose }) {
+  const { cartItems, updateQuantity, removeFromCart, cartTotal, subtotal, shipping, clearCart } = useCart();
+  const { user } = useAuth();
+  const [isPaying, setIsPaying] = useState(false);
 
   if (!isOpen) return null;
+
+  // One tap: the order is paid and saved straight away (no checkout form).
+  // order-service takes the units out of stock, or rejects the order if stock is short.
+  const handlePay = async () => {
+    if (isPaying || cartItems.length === 0) return;
+    setIsPaying(true);
+    const total = Math.round(cartTotal * 100) / 100;
+    try {
+      const saved = await orderService.recordCompletedOrder({
+        customerId: user?.id || null,
+        customerName: user?.name || undefined,
+        customerEmail: user?.email || undefined,
+        items: cartItems.map((item) => ({
+          productId: item.id,
+          title: item.title,
+          category: item.category || '',
+          price: item.price,
+          quantity: item.quantity
+        })),
+        totalAmount: total,
+        // No address form any more: deliver to the account holder
+        shippingAddress: { name: user?.name || '', email: user?.email || '' }
+      });
+      clearCart();
+      onClose();
+      const receipt = saved?.notification?.status === 'queued'
+        ? ` A receipt is on its way to ${saved.notification.to}.`
+        : '';
+      toast.success('Payment successful', {
+        description: `Order #${String(saved?.id || '').slice(-8)} is paid — $${total.toFixed(2)}.${receipt} Track it in My Orders.`
+      });
+    } catch (err) {
+      toast.error('Payment failed', { description: err.message || 'The order could not be placed' });
+    } finally {
+      setIsPaying(false);
+    }
+  };
 
   return (
     <div className="cart-backdrop" onClick={onClose}>
@@ -71,22 +114,40 @@ export default function CartDrawer({ isOpen, onClose, onProceedToCheckout }) {
           <div className="cart-footer">
             <div className="cart-summary-row">
               <span>Subtotal:</span>
-              <span className="cart-subtotal-val">${cartTotal.toFixed(2)}</span>
+              <span className="cart-subtotal-val">${subtotal.toFixed(2)}</span>
             </div>
             <div className="cart-summary-row text-muted">
               <span>Shipping:</span>
-              <span className="text-emerald-500 font-semibold">FREE</span>
+              {shipping === 0 ? (
+                <span className="text-emerald-500 font-semibold">FREE</span>
+              ) : (
+                <span>${shipping.toFixed(2)}</span>
+              )}
             </div>
+            {shipping > 0 && (
+              <div className="cart-summary-row text-muted cart-free-shipping-hint">
+                <span>Add ${(50 - subtotal).toFixed(2)} more for free shipping</span>
+              </div>
+            )}
             <div className="cart-summary-row total-row">
               <span>Total:</span>
               <span className="cart-grand-total">${cartTotal.toFixed(2)}</span>
             </div>
 
-            <button className="btn-checkout" onClick={onProceedToCheckout}>
-              Pay
-              <ArrowRight size={18} />
+            <button className="btn-checkout" onClick={handlePay} disabled={isPaying}>
+              {isPaying ? (
+                <>
+                  <Loader2 size={18} className="spin-icon" />
+                  Paying…
+                </>
+              ) : (
+                <>
+                  Pay ${cartTotal.toFixed(2)}
+                  <ArrowRight size={18} />
+                </>
+              )}
             </button>
-            <button className="btn-clear-cart" onClick={clearCart}>
+            <button className="btn-clear-cart" onClick={clearCart} disabled={isPaying}>
               Clear Cart
             </button>
           </div>

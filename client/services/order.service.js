@@ -1,133 +1,62 @@
 import { placeOrderApi, getOrdersApi, getAllOrdersAdminApi, updateOrderStatusApi, cancelOrderApi } from '../api/order.api';
 
-const ORDERS_KEY = 'ecommerce_orders';
+// Older versions cached orders in the browser; those copies were never on the server.
+const LEGACY_ORDERS_KEY = 'ecommerce_orders';
+try {
+  localStorage.removeItem(LEGACY_ORDERS_KEY);
+} catch {
+  // storage unavailable — nothing to clean up
+}
+
+const listFrom = (res) => (res?.success && Array.isArray(res.data) ? res.data : []);
 
 /**
  * Order Business Logic Service (Frontend)
- * Coordinates pure HTTP calls to /api/orders with local state persistence.
+ * Thin layer over /api/orders. Every method reflects what order-service stored;
+ * failures are thrown so the UI never shows an order the server doesn't have.
  */
 class OrderService {
+  /** Kept for older callers; orders are no longer cached in the browser. */
   getStoredOrders() {
-    try {
-      const raw = localStorage.getItem(ORDERS_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
+    return [];
   }
 
-  saveOrders(orders) {
-    localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
-  }
-
+  /** The signed-in customer's orders. */
   async fetchOrders() {
-    try {
-      const res = await getOrdersApi();
-      if (res && res.success && Array.isArray(res.data)) {
-        this.saveOrders(res.data);
-        return res.data;
-      }
-    } catch {
-      // Fallback to local persistence
-    }
-    return this.getStoredOrders();
+    return listFrom(await getOrdersApi());
   }
 
+  /** Every order (admin only). */
   async fetchAllAdminOrders() {
-    try {
-      const res = await getAllOrdersAdminApi();
-      if (res && res.success && Array.isArray(res.data)) {
-        return res.data;
-      }
-    } catch {
-      // Fallback to local persistence
-    }
-    return this.getStoredOrders();
+    return listFrom(await getAllOrdersAdminApi());
   }
 
-  createOrderEnvelope(cartItems, totalAmount, shippingInfo, customerId) {
-    const orderId = `ord-${Date.now().toString().slice(-6)}`;
-    return {
-      orderId,
-      customerId: customerId || null,
-      customerPhone: shippingInfo.phone,
-      items: cartItems.map(item => ({
-        productId: item.id,
-        title: item.title,
-        price: item.price,
-        quantity: item.quantity,
-        subtotal: item.price * item.quantity
-      })),
-      totalAmount,
-      shippingAddress: shippingInfo,
-      status: 'Pending',
-      createdAt: new Date().toISOString()
-    };
-  }
-
+  /**
+   * Save a paid order. order-service takes the units out of inventory first and
+   * rejects the order (nothing saved, nothing charged) when stock is short.
+   * @returns the order as stored by the server
+   */
   async recordCompletedOrder(order, paymentId) {
-    const completedOrder = { 
-      ...order, 
-      status: 'Paid', 
-      paymentId,
+    const res = await placeOrderApi({
+      ...order,
+      status: 'Paid',
+      paymentId: paymentId || order.paymentId || `pay-${Date.now().toString().slice(-6)}`,
       paymentStatus: 'Completed'
-    };
-
-    // Save optimistically to local storage
-    const existing = this.getStoredOrders();
-    const updated = [completedOrder, ...existing];
-    this.saveOrders(updated);
-
-    // Persist to PostgreSQL backend via API Gateway
-    try {
-      await placeOrderApi(completedOrder);
-    } catch (err) {
-      console.warn('[OrderService] Server persistence failed, saved locally:', err.message);
+    });
+    if (!res?.success) {
+      throw new Error(res?.message || 'The order could not be saved');
     }
-
-    return updated;
+    return res.data;
   }
 
   async cancelOrder(orderId) {
-    const existing = this.getStoredOrders();
-    const updated = existing.map(ord => {
-      if (ord.orderId === orderId || ord.id === orderId) {
-        return {
-          ...ord,
-          status: 'Cancelled',
-          cancelledAt: new Date().toISOString()
-        };
-      }
-      return ord;
-    });
-    this.saveOrders(updated);
-
-    try {
-      await cancelOrderApi(orderId);
-    } catch (err) {
-      console.warn('[OrderService] Server cancel order sync failed:', err.message);
-    }
-
-    return updated;
+    await cancelOrderApi(orderId);
+    return this.fetchOrders();
   }
 
   async updateOrderStatus(orderId, newStatus) {
-    const existing = this.getStoredOrders();
-    const updated = existing.map(ord => {
-      if (ord.orderId === orderId || ord.id === orderId) {
-        return { ...ord, status: newStatus };
-      }
-      return ord;
-    });
-    this.saveOrders(updated);
-
-    try {
-      await updateOrderStatusApi(orderId, newStatus);
-    } catch (err) {
-      console.warn('[OrderService] Server update status sync failed:', err.message);
-    }
-
-    return updated;
+    await updateOrderStatusApi(orderId, newStatus);
+    return this.fetchAllAdminOrders();
   }
 }
 

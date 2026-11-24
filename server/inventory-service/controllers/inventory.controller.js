@@ -36,13 +36,19 @@ class InventoryController {
   async updateStock(req, res) {
     try {
       const { productId } = req.params;
-      const { stockQuantity, productName } = req.body;
+      const { stockQuantity, productName, category, batchId, expiresAt, totalSellingPrice } = req.body;
 
       if (stockQuantity === undefined) {
         return error(res, 'stockQuantity is required', 400);
       }
 
-      const updated = await inventoryService.updateProductStock(productId, stockQuantity, productName);
+      const updated = await inventoryService.updateProductStock(productId, stockQuantity, {
+        productName,
+        category,
+        batchId,
+        expiresAt,
+        ...(totalSellingPrice !== undefined && { totalSellingPrice })
+      });
       return success(res, updated.toJSON(), 'Inventory stock updated successfully');
     } catch (err) {
       return error(res, err.message, 400);
@@ -65,7 +71,7 @@ class InventoryController {
 
   async replenishStock(req, res) {
     try {
-      const { productId, amount, productName, category, batchId, expiresAt } = req.body;
+      const { productId, amount, productName, category, batchId, expiresAt, totalSellingPrice } = req.body;
       if (!productId || !amount) {
         return error(res, 'productId and amount are required', 400);
       }
@@ -74,7 +80,8 @@ class InventoryController {
         productName,
         category,
         batchId,
-        expiresAt
+        expiresAt,
+        ...(totalSellingPrice !== undefined && { totalSellingPrice })
       });
       return success(res, updated.toJSON(), 'Stock replenished successfully');
     } catch (err) {
@@ -91,6 +98,19 @@ class InventoryController {
 
       const result = await inventoryService.checkAvailability(items);
       return success(res, result, 'Stock availability checked');
+    } catch (err) {
+      return error(res, err.message, 400);
+    }
+  }
+
+  async deleteStock(req, res) {
+    try {
+      const { productId } = req.params;
+      const deleted = await inventoryService.deleteStock(productId);
+      if (!deleted) {
+        return error(res, `Inventory item for product ${productId} not found`, 404);
+      }
+      return success(res, deleted.toJSON(), 'Inventory item deleted successfully');
     } catch (err) {
       return error(res, err.message, 400);
     }

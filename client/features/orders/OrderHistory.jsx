@@ -3,25 +3,55 @@ import { useAuth } from '../../context/AuthContext';
 import { useEvents } from '../../context/EventContext';
 import orderService from '../../services/order.service';
 import TanStackDataTable from '../../components/TanStackDataTable';
-import { Package, Clock, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
+import { subscribeRealtime } from '../../services/realtime.service';
+import { toast } from 'sonner';
+import { Package, Clock, CheckCircle, XCircle, RotateCcw, Loader2 } from 'lucide-react';
 
 export default function OrderHistory() {
   const { user } = useAuth();
   const { addLocalEvent } = useEvents();
-  const [orders, setOrders] = useState(() => orderService.getStoredOrders());
+  const [orders, setOrders] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
+  // Orders come only from order-service; refreshed live when any order changes
   useEffect(() => {
-    // Load customer orders via order business logic service
-    orderService.fetchOrders().then((ords) => {
-      if (ords && ords.length > 0) setOrders(ords);
+    let cancelled = false;
+    const load = () =>
+      orderService
+        .fetchOrders()
+        .then((ords) => {
+          if (cancelled) return;
+          setOrders(ords);
+          setLoadError('');
+        })
+        .catch((err) => {
+          if (!cancelled) setLoadError(err.message || 'Could not load your orders');
+        })
+        .finally(() => {
+          if (!cancelled) setIsLoading(false);
+        });
+
+    load();
+    const unsubscribe = subscribeRealtime((event) => {
+      if (event.type === 'orders.updated') load();
     });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   const handleCancelOrder = async (orderId) => {
     if (!window.confirm('Are you sure you want to cancel this order?')) return;
 
-    const updated = await orderService.cancelOrder(orderId);
-    setOrders(updated);
+    try {
+      setOrders(await orderService.cancelOrder(orderId));
+      toast.success('Order cancelled');
+    } catch (err) {
+      toast.error('Could not cancel the order', { description: err.message });
+      return;
+    }
 
     // Emit OrderCancelled Event (Workflow 6: Order Cancellation)
     addLocalEvent('OrderCancelled', 'order-service', {
@@ -75,42 +105,55 @@ export default function OrderHistory() {
         )
       },
       {
-        header: 'Items',
-        id: 'items',
+        header: 'Product',
+        id: 'product',
         cell: ({ row }) => {
           const items = row.original.items || [];
-          if (items.length === 0) return <span className="text-muted text-xs">Standard Item</span>;
+          if (items.length === 0) return <span className="text-muted">—</span>;
           return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-              {items.slice(0, 2).map((item, idx) => (
-                <div key={idx} style={{ fontSize: '0.84rem' }}>
-                  <span className="font-semibold">{item.quantity}x</span> {item.title || item.name}
-                </div>
+            <div className="order-item-lines">
+              {items.map((item, idx) => (
+                <div key={idx} className="font-semibold">{item.title || item.name || item.productId}</div>
               ))}
-              {items.length > 2 && (
-                <span className="text-muted text-xs">+{items.length - 2} more item(s)</span>
+            </div>
+          );
+        }
+      },
+      {
+        header: 'Category',
+        id: 'category',
+        cell: ({ row }) => {
+          const items = row.original.items || [];
+          return (
+            <div className="order-item-lines">
+              {items.map((item, idx) =>
+                item.category ? (
+                  <div key={idx}><span className="cat-tag">{item.category}</span></div>
+                ) : (
+                  <div key={idx} className="text-muted">—</div>
+                )
               )}
             </div>
           );
         }
       },
       {
-        header: 'Total',
-        id: 'total',
+        header: 'Qty',
+        id: 'qty',
         cell: ({ row }) => (
-          <span className="font-semibold text-emerald">
-            ${(Number(row.original.totalAmount) || 0).toFixed(2)}
-          </span>
+          <div className="order-item-lines">
+            {(row.original.items || []).map((item, idx) => (
+              <div key={idx}>{item.quantity}</div>
+            ))}
+          </div>
         )
       },
       {
-        header: 'Ship To',
-        id: 'shipping',
+        header: 'Total',
+        id: 'total',
         cell: ({ row }) => (
-          <span className="text-sm text-muted">
-            {row.original.shippingAddress?.city
-              ? `${row.original.shippingAddress.city}, ${row.original.shippingAddress.country || ''}`
-              : 'Standard Delivery'}
+          <span className="font-semibold">
+            ${(Number(row.original.totalAmount) || 0).toFixed(2)}
           </span>
         )
       },
@@ -120,7 +163,7 @@ export default function OrderHistory() {
         cell: ({ row }) => getStatusBadge(row.original.status)
       },
       {
-        header: 'Action',
+        header: '',
         id: 'action',
         cell: ({ row }) => {
           const order = row.original;
@@ -162,7 +205,18 @@ export default function OrderHistory() {
         </div>
       </div>
 
-      {orders.length === 0 ? (
+      {isLoading ? (
+        <div className="empty-orders-card">
+          <Loader2 size={32} className="spin-icon" />
+          <p>Loading your orders…</p>
+        </div>
+      ) : loadError ? (
+        <div className="empty-orders-card">
+          <XCircle size={40} />
+          <h3>Couldn't load your orders</h3>
+          <p>{loadError}</p>
+        </div>
+      ) : orders.length === 0 ? (
         <div className="empty-orders-card">
           <Package size={48} className="empty-icon" />
           <h3>No orders placed yet</h3>

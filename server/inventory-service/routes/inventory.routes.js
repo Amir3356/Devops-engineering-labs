@@ -12,6 +12,7 @@ router.get('/:productId', (req, res) => inventoryController.getProductStock(req,
 
 // Admin stock adjustment
 router.put('/stock/:productId', requireAdmin, (req, res) => inventoryController.updateStock(req, res));
+router.delete('/:productId', requireAdmin, (req, res) => inventoryController.deleteStock(req, res));
 router.post('/replenish', requireAdmin, (req, res) => inventoryController.replenishStock(req, res));
 
 // Order workflow deduction

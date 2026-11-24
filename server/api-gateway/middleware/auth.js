@@ -28,6 +28,9 @@ export const authenticateToken = (req, res, next) => {
     req.headers['x-user-id'] = String(decoded.id || decoded.userId);
     req.headers['x-user-phone'] = String(decoded.phone || '');
     req.headers['x-user-role'] = String(decoded.role);
+    // Signup email/name for receipts; encoded because names may contain non-ASCII characters
+    req.headers['x-user-email'] = String(decoded.email || '');
+    req.headers['x-user-name'] = encodeURIComponent(String(decoded.name || ''));
     next();
   });
 };
@@ -46,6 +49,8 @@ export const optionalAuth = (req, res, next) => {
         req.headers['x-user-id'] = String(decoded.id || decoded.userId);
         req.headers['x-user-phone'] = String(decoded.phone || '');
         req.headers['x-user-role'] = String(decoded.role);
+        req.headers['x-user-email'] = String(decoded.email || '');
+        req.headers['x-user-name'] = encodeURIComponent(String(decoded.name || ''));
       }
       next();
     });

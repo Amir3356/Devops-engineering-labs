@@ -6,6 +6,7 @@ import { useCart } from '../../context/CartContext';
 import { getProductsApi, getCategoriesApi } from '../../api/product.api';
 import { getAllStockApi } from '../../api/inventory.api';
 import orderService from '../../services/order.service';
+import { subscribeRealtime } from '../../services/realtime.service';
 import ProductDiscoverySidebar from './ProductDiscoverySidebar';
 import OrderHistory from '../orders/OrderHistory';
 
@@ -45,19 +46,30 @@ export default function CustomerDashboard() {
   const [addedProductId, setAddedProductId] = useState(null);
   const [orders, setOrders] = useState([]);
 
-  // Fetch live products, inventory stock, & customer orders
+  // Fetch live products, inventory stock, & customer orders.
+  // Only products the admin has stocked (inventory row with stock > 0) are shown.
+  // The gateway pushes "catalog.updated" over WebSocket after any product/stock change,
+  // so newly stocked products appear immediately — no polling.
   useEffect(() => {
-    setIsLoading(true);
-    Promise.allSettled([
+    let cancelled = false;
+
+    const loadCatalog = (isFirstLoad = false) => {
+    if (isFirstLoad) setIsLoading(true);
+    return Promise.allSettled([
       getProductsApi(),
       getCategoriesApi(),
       getAllStockApi(),
       orderService.fetchOrders()
     ]).then(([prodRes, catRes, stockRes, ordsRes]) => {
+      if (cancelled) return;
       const stockMap = {};
       if (stockRes.status === 'fulfilled' && stockRes.value?.success && Array.isArray(stockRes.value.data)) {
         stockRes.value.data.forEach((item) => {
-          stockMap[item.productId || item.product_id] = Number(item.stockQuantity ?? item.stock_quantity ?? item.stock);
+          stockMap[item.productId || item.product_id] = {
+            quantity: Number(item.stockQuantity ?? item.stock_quantity ?? item.stock) || 0,
+            // Selling price is set by the admin in Inventory → Add Stock (null until then)
+            unitSellingPrice: item.unitSellingPrice == null ? null : Number(item.unitSellingPrice)
+          };
         });
       }
 
@@ -68,11 +80,17 @@ export default function CustomerDashboard() {
           ? prodRes.value
           : [];
 
-        const enriched = rawProducts.map((prod) => ({
-          ...prod,
-          stock: stockMap[prod.id] !== undefined ? stockMap[prod.id] : Number(prod.stock || 0)
-        }));
-        setProducts(enriched);
+        // Visible only once stock has been added in Admin → Inventory → Add Stock
+        const stocked = rawProducts
+          .filter((prod) => stockMap[prod.id]?.quantity > 0)
+          .map((prod) => ({
+            ...prod,
+            stock: stockMap[prod.id].quantity,
+            // The price customers pay (and the cart uses) is the inventory unit selling price
+            price: stockMap[prod.id].unitSellingPrice,
+            hasPrice: stockMap[prod.id].unitSellingPrice !== null
+          }));
+        setProducts(stocked);
       } else {
         setProducts([]);
       }
@@ -90,8 +108,33 @@ export default function CustomerDashboard() {
         setOrders([]);
       }
     }).finally(() => {
-      setIsLoading(false);
+      if (!cancelled && isFirstLoad) setIsLoading(false);
     });
+    };
+
+    loadCatalog(true);
+
+    // Several writes often arrive together (e.g. stock + purchase); reload once per burst.
+    let reloadTimer = null;
+    const scheduleReload = () => {
+      clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(() => loadCatalog(false), 300);
+    };
+    let hasConnectedBefore = false;
+    const unsubscribe = subscribeRealtime((event) => {
+      if (event.type === 'catalog.updated') scheduleReload();
+      // After a reconnect, resync anything missed while offline
+      if (event.type === 'connection.open') {
+        if (hasConnectedBefore) scheduleReload();
+        hasConnectedBefore = true;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(reloadTimer);
+      unsubscribe();
+    };
   }, []);
 
   const handleAddToCart = (prod) => {
@@ -222,6 +265,7 @@ export default function CustomerDashboard() {
                   {filteredProducts.map((prod) => {
                     const isLowStock = prod.stock > 0 && prod.stock <= 5;
                     const isOutOfStock = prod.stock <= 0;
+                    const canBuy = !isOutOfStock && prod.hasPrice;
 
                     return (
                       <div key={prod.id} className="product-card">
@@ -249,20 +293,30 @@ export default function CustomerDashboard() {
                           <p className="product-card-desc">
                             {prod.description}
                           </p>
+                          <p className={`product-card-stock ${isLowStock ? 'low' : ''}`}>
+                            <Package size={14} />
+                            <span>
+                              <strong>{prod.stock}</strong> {prod.stock === 1 ? 'unit' : 'units'} left
+                            </span>
+                          </p>
 
                           <div className="product-card-footer">
-                            <div className="product-price">
-                              <span className="currency">$</span>
-                              <span className="amount">{Number(prod.price).toFixed(2)}</span>
-                            </div>
+                            {prod.hasPrice ? (
+                              <div className="product-price">
+                                <span className="currency">$</span>
+                                <span className="amount">{Number(prod.price).toFixed(2)}</span>
+                              </div>
+                            ) : (
+                              <div className="product-price product-price-unset">Price not set</div>
+                            )}
 
                             <div className="product-card-actions">
                               <button
                                 type="button"
                                 className={`btn-add-cart ${addedProductId === prod.id ? 'btn-added-success' : ''}`}
                                 onClick={() => handleAddToCart(prod)}
-                                disabled={isOutOfStock}
-                                title="Add to Cart"
+                                disabled={!canBuy}
+                                title={prod.hasPrice ? 'Add to Cart' : 'This product has no selling price yet'}
                               >
                                 {addedProductId === prod.id ? (
                                   <>
@@ -272,7 +326,7 @@ export default function CustomerDashboard() {
                                 ) : (
                                   <>
                                     <ShoppingCart size={16} />
-                                    <span>{isOutOfStock ? 'Sold Out' : 'Add to Cart'}</span>
+                                    <span>{isOutOfStock ? 'Sold Out' : prod.hasPrice ? 'Add to Cart' : 'Unavailable'}</span>
                                   </>
                                 )}
                               </button>
@@ -288,8 +342,17 @@ export default function CustomerDashboard() {
                   <div className="empty-icon-circle">
                     <Package size={36} />
                   </div>
-                  <h3>No products found</h3>
-                  <p>There are currently no products matching your criteria.</p>
+                  {products.length === 0 ? (
+                    <>
+                      <h3>No products available yet</h3>
+                      <p>New products appear here as soon as they are in stock.</p>
+                    </>
+                  ) : (
+                    <>
+                      <h3>No products found</h3>
+                      <p>There are currently no products matching your criteria.</p>
+                    </>
+                  )}
                 </div>
               )}
             </div>

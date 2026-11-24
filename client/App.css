@@ -4789,3 +4789,33 @@ td.font-mono-cell > span { display: block; }
 }
 .btn-table-edit:disabled:hover { background: #eff5ff; }
 .btn-table-delete:disabled:hover { background: #fff1f3; }
+
+/* Customer product card: units left + unpriced state */
+.product-card-stock {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.product-card-stock strong { color: var(--text-main); }
+.product-card-stock.low,
+.product-card-stock.low strong { color: #b45309; }
+.product-price-unset { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); }
+.btn-add-cart:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* Order status: "Paid" is a solid green pill (customer My Orders + admin Customer Orders) */
+.status-badge.paid {
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  gap: 5px;
+}
+.status-badge.paid svg { color: #fff; }
+
+/* One line per item when an order has several products */
+.order-item-lines { display: flex; flex-direction: column; gap: 6px; font-size: 0.88rem; }

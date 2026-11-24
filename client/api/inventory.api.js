@@ -22,11 +22,14 @@ export const getProductStockApi = (productId) => {
   });
 };
 
-// Server expects { stockQuantity, productName? }
-export const updateStockApi = (productId, stockQuantity, productName) => {
+// Server expects { stockQuantity, productName?, category?, batchId?, expiresAt? }
+export const updateStockApi = (productId, stockQuantity, details = {}) => {
+  const body = typeof details === 'string'
+    ? { stockQuantity, productName: details }
+    : { stockQuantity, ...details };
   return request(`/api/inventory/stock/${productId}`, {
     method: 'PUT',
-    body: JSON.stringify({ stockQuantity, productName })
+    body: JSON.stringify(body)
   });
 };
 
@@ -43,5 +46,11 @@ export const checkAvailabilityApi = (items) => {
   return request('/api/inventory/check', {
     method: 'POST',
     body: JSON.stringify({ items })
+  });
+};
+
+export const deleteStockApi = (productId) => {
+  return request(`/api/inventory/${productId}`, {
+    method: 'DELETE'
   });
 };

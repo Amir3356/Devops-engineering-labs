@@ -5,6 +5,8 @@ import cors from 'cors';
 import { corsOptions } from '../utils/cors.js';
 import config from './config/index.js';
 import notificationRoutes from './routes/notification.routes.js';
+import internalRoutes from './routes/internal.routes.js';
+import { verifyEmailTransport } from './services/email.service.js';
 import { success } from '../utils/response.js';
 
 const app = express();
@@ -34,6 +36,9 @@ app.get('/health', (req, res) => {
 
 // Mount Routes under standard path
 app.use('/api/notifications', notificationRoutes);
+// Service-to-service only (e.g. sale-service asks for a receipt email)
+app.use('/internal', internalRoutes);
+verifyEmailTransport();
 
 // Central error handler
 app.use((err, req, res, _next) => {

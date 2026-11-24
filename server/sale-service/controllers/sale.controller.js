@@ -25,7 +25,7 @@ class SaleController {
       const data = await saleService.recordSale(req.body);
       return success(res, data, 'Sale transaction recorded successfully', 201);
     } catch (err) {
-      return error(res, err.message, 400);
+      return error(res, err.message, err.status || 400);
     }
   }
 

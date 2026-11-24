@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter, useNavigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -8,7 +8,7 @@ import { EventProvider } from './context/EventContext';
 import Navbar from './components/Navbar';
 import EventStreamDrawer from './components/EventStreamDrawer';
 import { AppRoutes } from './routes';
-import { CartDrawer, CheckoutModal } from './features/cart';
+import { CartDrawer } from './features/cart';
 import './App.css';
 
 function MainApp() {
@@ -17,7 +17,6 @@ function MainApp() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   const isCustomerDashboard = location.pathname.startsWith('/dashboard');
   const isAdminPortal = location.pathname.startsWith('/admin');
@@ -62,22 +61,7 @@ function MainApp() {
       )}
 
       {/* Modals and Drawers */}
-      <CartDrawer
-        isOpen={isCartOpen}
-        onClose={closeCart}
-        onProceedToCheckout={() => {
-          closeCart();
-          setIsCheckoutOpen(true);
-        }}
-      />
-
-      <CheckoutModal
-        isOpen={isCheckoutOpen}
-        onClose={() => setIsCheckoutOpen(false)}
-        onOrderCompleted={() => {
-          navigate('/orders');
-        }}
-      />
+      <CartDrawer isOpen={isCartOpen} onClose={closeCart} />
 
       {/* Real-time Event Console Drawer */}
       <EventStreamDrawer />

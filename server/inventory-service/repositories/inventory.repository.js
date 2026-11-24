@@ -24,6 +24,9 @@ class InventoryRepository {
         ALTER TABLE inventory_stock ADD COLUMN IF NOT EXISTS batch_id VARCHAR(64);
         ALTER TABLE inventory_stock ADD COLUMN IF NOT EXISTS category VARCHAR(128);
         ALTER TABLE inventory_stock ADD COLUMN IF NOT EXISTS expires_at DATE;
+        -- Selling prices set when a batch is stocked (unit = total ÷ batch quantity)
+        ALTER TABLE inventory_stock ADD COLUMN IF NOT EXISTS unit_selling_price NUMERIC(10, 2);
+        ALTER TABLE inventory_stock ADD COLUMN IF NOT EXISTS total_selling_price NUMERIC(12, 2);
       `);
     } catch (err) {
       console.error('[Inventory Repository] PostgreSQL init error:', err.message);
@@ -46,6 +49,8 @@ class InventoryRepository {
       category: r.category,
       batchId: r.batch_id,
       expiresAt: InventoryRepository.toDateOnly(r.expires_at),
+      unitSellingPrice: r.unit_selling_price,
+      totalSellingPrice: r.total_selling_price,
       stockQuantity: r.stock_quantity,
       lowStockThreshold: r.low_stock_threshold,
       updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
@@ -70,32 +75,95 @@ class InventoryRepository {
     return res.rows.map(r => this.mapRow(r));
   }
 
-  async updateStock(productId, stockQuantity, productName = null) {
+  async updateStock(productId, stockQuantity, options = null) {
     await this.ready;
-    let sql;
-    let params;
+    const opts = typeof options === 'string' ? { productName: options } : (options || {});
+    const { productName, category, batchId, expiresAt, unitSellingPrice, totalSellingPrice } = opts;
 
-    if (productName) {
-      sql = `
-        INSERT INTO inventory_stock (product_id, product_name, stock_quantity, updated_at)
-        VALUES ($1, $2, $3, NOW())
-        ON CONFLICT (product_id) 
-        DO UPDATE SET stock_quantity = EXCLUDED.stock_quantity, product_name = EXCLUDED.product_name, updated_at = NOW()
+    const existing = await pool.query('SELECT * FROM inventory_stock WHERE product_id = $1', [productId]);
+    if (existing.rows.length === 0) {
+      const res = await pool.query(`
+        INSERT INTO inventory_stock (product_id, product_name, stock_quantity, category, batch_id, expires_at, unit_selling_price, total_selling_price, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
         RETURNING *;
-      `;
-      params = [productId, productName, stockQuantity];
-    } else {
-      sql = `
-        UPDATE inventory_stock
-        SET stock_quantity = $1, updated_at = NOW()
-        WHERE product_id = $2
-        RETURNING *;
-      `;
-      params = [stockQuantity, productId];
+      `, [
+        productId, productName || 'Product', stockQuantity, category || null, batchId || null, expiresAt || null,
+        unitSellingPrice ?? null, totalSellingPrice ?? null
+      ]);
+      return this.mapRow(res.rows[0]);
     }
 
+    const updates = ['stock_quantity = $2', 'updated_at = NOW()'];
+    const params = [productId, stockQuantity];
+    let paramIndex = 3;
+
+    if (productName) {
+      updates.push(`product_name = $${paramIndex++}`);
+      params.push(productName);
+    }
+    if (category !== undefined) {
+      updates.push(`category = $${paramIndex++}`);
+      params.push(category || null);
+    }
+    if (batchId !== undefined) {
+      updates.push(`batch_id = $${paramIndex++}`);
+      params.push(batchId || null);
+    }
+    if (expiresAt !== undefined) {
+      updates.push(`expires_at = $${paramIndex++}`);
+      params.push(expiresAt || null);
+    }
+    if (totalSellingPrice !== undefined && unitSellingPrice !== undefined) {
+      updates.push(`unit_selling_price = $${paramIndex++}`);
+      params.push(unitSellingPrice);
+      updates.push(`total_selling_price = $${paramIndex++}`);
+      params.push(totalSellingPrice);
+    }
+
+    const sql = `
+      UPDATE inventory_stock
+      SET ${updates.join(', ')}
+      WHERE product_id = $1
+      RETURNING *;
+    `;
     const res = await pool.query(sql, params);
     return this.mapRow(res.rows[0]);
+  }
+
+  /**
+   * Deduct several items atomically: either every item has enough stock and all
+   * are deducted, or nothing changes and an error names the short product.
+   */
+  async deductMany(items) {
+    await this.ready;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const updated = [];
+      for (const { productId, quantity } of items) {
+        const res = await client.query(`
+          UPDATE inventory_stock
+          SET stock_quantity = stock_quantity - $1, updated_at = NOW()
+          WHERE product_id = $2 AND stock_quantity >= $1
+          RETURNING *;
+        `, [quantity, productId]);
+        if (res.rows.length === 0) {
+          const current = await client.query('SELECT product_name, stock_quantity FROM inventory_stock WHERE product_id = $1', [productId]);
+          const row = current.rows[0];
+          throw new Error(row
+            ? `Not enough stock for ${row.product_name}: ${row.stock_quantity} left, ${quantity} requested`
+            : `Product ${productId} is not in stock`);
+        }
+        updated.push(this.mapRow(res.rows[0]));
+      }
+      await client.query('COMMIT');
+      return updated;
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async deductStock(productId, quantity) {
@@ -114,20 +182,25 @@ class InventoryRepository {
    * Add stock from a purchase batch. Creates the product's stock row if needed
    * and records the latest batch id, category and expiry date.
    */
-  async addBatchStock({ productId, productName, category, batchId, expiresAt, quantity }) {
+  async addBatchStock({ productId, productName, category, batchId, expiresAt, quantity, unitSellingPrice, totalSellingPrice }) {
     await this.ready;
     const res = await pool.query(`
-      INSERT INTO inventory_stock (product_id, product_name, stock_quantity, category, batch_id, expires_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      INSERT INTO inventory_stock (product_id, product_name, stock_quantity, category, batch_id, expires_at, unit_selling_price, total_selling_price, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
       ON CONFLICT (product_id) DO UPDATE SET
         stock_quantity = inventory_stock.stock_quantity + EXCLUDED.stock_quantity,
         product_name = EXCLUDED.product_name,
         category = COALESCE(EXCLUDED.category, inventory_stock.category),
         batch_id = COALESCE(EXCLUDED.batch_id, inventory_stock.batch_id),
         expires_at = COALESCE(EXCLUDED.expires_at, inventory_stock.expires_at),
+        unit_selling_price = COALESCE(EXCLUDED.unit_selling_price, inventory_stock.unit_selling_price),
+        total_selling_price = COALESCE(EXCLUDED.total_selling_price, inventory_stock.total_selling_price),
         updated_at = NOW()
       RETURNING *;
-    `, [productId, productName, quantity, category || null, batchId || null, expiresAt || null]);
+    `, [
+      productId, productName, quantity, category || null, batchId || null, expiresAt || null,
+      unitSellingPrice ?? null, totalSellingPrice ?? null
+    ]);
 
     return this.mapRow(res.rows[0]);
   }
@@ -141,6 +214,12 @@ class InventoryRepository {
       RETURNING *;
     `, [quantity, productId]);
 
+    return this.mapRow(res.rows[0]);
+  }
+
+  async deleteStock(productId) {
+    await this.ready;
+    const res = await pool.query('DELETE FROM inventory_stock WHERE product_id = $1 RETURNING *', [productId]);
     return this.mapRow(res.rows[0]);
   }
 }

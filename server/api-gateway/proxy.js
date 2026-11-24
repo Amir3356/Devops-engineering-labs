@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { error } from '../utils/response.js';
+import { announceIfCatalogChanged } from './realtime.js';
 
 /**
  * Reverse Proxy helper that dispatches requests from API Gateway to downstream microservices using Axios.
@@ -13,10 +14,13 @@ const proxyRequest = (targetBaseUrl) => {
         'Accept': 'application/json'
       };
 
-      // Forward user context extracted by authentication middleware
-      if (req.headers['x-user-id']) headers['x-user-id'] = req.headers['x-user-id'];
-      if (req.headers['x-user-phone']) headers['x-user-phone'] = req.headers['x-user-phone'];
-      if (req.headers['x-user-role']) headers['x-user-role'] = req.headers['x-user-role'];
+      // Forward user context only when it came from a verified token (req.user is set by the
+      // auth middleware) — x-user-* headers sent by the browser itself are never trusted
+      if (req.user) {
+        for (const name of ['x-user-id', 'x-user-phone', 'x-user-role', 'x-user-email', 'x-user-name']) {
+          if (req.headers[name]) headers[name] = req.headers[name];
+        }
+      }
       if (req.headers['authorization']) headers['authorization'] = req.headers['authorization'];
 
       const response = await axios({
@@ -27,6 +31,7 @@ const proxyRequest = (targetBaseUrl) => {
         validateStatus: () => true // Allow all status codes to pass through to the client
       });
 
+      announceIfCatalogChanged(req, response.status);
       return res.status(response.status).json(response.data);
     } catch (err) {
       if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND' || (err.cause && (err.cause.code === 'ECONNREFUSED' || err.cause.code === 'ENOTFOUND'))) {

@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import config from './config/index.js';
 import routes from './routes/index.js';
+import { attachRealtime } from './realtime.js';
 import { success } from '../utils/response.js';
 import { requestLogger, rateLimiter, notFoundHandler, errorHandler } from './middleware/index.js';
 
@@ -57,7 +58,7 @@ export default app;
 const isMainModule = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 if (isMainModule) {
   const PORT = config.PORT;
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`\n======================================================`);
     console.log(`🚀 API Gateway active on http://localhost:${PORT}`);
     console.log(`   Health check: http://localhost:${PORT}/health`);
@@ -67,4 +68,6 @@ if (isMainModule) {
     }
     console.log(`======================================================\n`);
   });
+  // Real-time channel (ws://<gateway>/ws) shares the HTTP port
+  attachRealtime(server);
 }
