@@ -15,6 +15,7 @@
     "sale": "node sale-service/server.js",
     "inventory": "node inventory-service/server.js",
     "notification": "node notification-service/server.js",
+    "policy": "node policy-service/server.js",
     "seed:admin": "node utils/knexManager.js seed:admin",
     "migrate": "node utils/knexManager.js migrate",
     "migrate:fresh": "node utils/knexManager.js migrate:fresh",

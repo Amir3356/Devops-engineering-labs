@@ -38,7 +38,8 @@ export const services = {
   order: buildKnexConfig(process.env.ORDER_DB_URL, 'order-service'),
   sale: buildKnexConfig(process.env.SALE_DB_URL, 'sale-service'),
   inventory: buildKnexConfig(process.env.INVENTORY_DB_URL, 'inventory-service'),
-  notification: buildKnexConfig(process.env.NOTIFICATION_DB_URL, 'notification-service')
+  notification: buildKnexConfig(process.env.NOTIFICATION_DB_URL, 'notification-service'),
+  policy: buildKnexConfig(process.env.POLICY_DB_URL, 'policy-service')
 };
 
 export default services;

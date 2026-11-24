@@ -19,6 +19,7 @@ export default {
     ORDER: process.env.ORDER_SERVICE_URL,
     SALE: process.env.SALE_SERVICE_URL,
     INVENTORY: process.env.INVENTORY_SERVICE_URL,
-    NOTIFICATION: process.env.NOTIFICATION_SERVICE_URL
+    NOTIFICATION: process.env.NOTIFICATION_SERVICE_URL,
+    POLICY: process.env.POLICY_SERVICE_URL
   }
 };

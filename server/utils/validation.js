@@ -27,12 +27,18 @@ export const authLoginSchema = z.object({
 // 2. Product Schemas
 // ==========================================
 export const createProductSchema = z.object({
-  name: z.string().trim().min(2, 'Product name is required'),
-  category: z.string().trim().min(2, 'Category is required'),
-  price: z.coerce.number().positive('Price must be greater than 0'),
-  stock: z.coerce.number().int().nonnegative('Stock must be >= 0'),
-  description: z.string().optional(),
-  image: z.string().optional().or(z.literal(''))
+  name: z.string().trim().min(1, 'Product name is required'),
+  category: z.string().trim().optional().default('General'),
+  price: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined ? 0 : val),
+    z.coerce.number().nonnegative('Price cannot be negative').default(0)
+  ),
+  stock: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined ? 0 : val),
+    z.coerce.number().int().nonnegative('Stock must be >= 0').default(0)
+  ),
+  description: z.string().optional().default(''),
+  image: z.any().optional()
 });
 
 // ==========================================

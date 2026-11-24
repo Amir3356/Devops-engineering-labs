@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import TanStackDataTable from '../../components/TanStackDataTable';
 import { useEvents } from '../../context/EventContext';
 import { useAuth } from '../../context/AuthContext';
+import { getPolicyApi, updatePolicyApi, resetPolicyApi, INVENTORY_ALERTS_POLICY } from '../../api/policy.api';
 import { productSchema } from '../../utils/validators';
 import orderService from '../../services/order.service';
 import {
@@ -50,6 +51,7 @@ import {
   XCircle,
   Warehouse,
   Settings,
+  ShieldCheck,
   Clock,
   Save,
   RotateCcw,
@@ -58,7 +60,19 @@ import {
   DollarSign
 } from 'lucide-react';
 
-const DEFAULT_PRODUCT_OPTIONS = [];
+// Built-in product choices for the Add Product dropdown, with a suggested category each
+const DEFAULT_PRODUCT_CATALOG = [
+  { name: 'Wireless Headphones', category: 'Audio', description: 'High-fidelity wireless headphones with active noise cancellation.' },
+  { name: 'Bluetooth Speaker', category: 'Audio', description: 'Portable Bluetooth speaker with deep bass and waterproof design.' },
+  { name: 'Smartphone', category: 'Electronics', description: 'Flagship smartphone with vivid AMOLED display and multi-camera system.' },
+  { name: 'Laptop', category: 'Electronics', description: 'Ultra-thin high-performance laptop for productivity and creative work.' },
+  { name: 'Mechanical Keyboard', category: 'Electronics', description: 'Tactile mechanical keyboard with customizable RGB backlighting.' },
+  { name: 'Smart Watch', category: 'Wearables', description: 'Feature-rich smartwatch with heart rate monitoring and fitness tracking.' },
+  { name: 'Fitness Tracker', category: 'Wearables', description: 'Lightweight water-resistant fitness band with long battery life.' },
+  { name: 'USB-C Charger', category: 'Accessories', description: 'Fast-charging compact USB-C power adapter.' },
+  { name: 'Phone Case', category: 'Accessories', description: 'Durable shock-absorbent protective phone case.' }
+];
+const DEFAULT_PRODUCT_OPTIONS = DEFAULT_PRODUCT_CATALOG.map((p) => p.name);
 
 const DEFAULT_ALERT_SETTINGS = {
   lowStockThreshold: 10,
@@ -98,6 +112,23 @@ export default function AdminDashboard() {
   });
 
   const [settingsForm, setSettingsForm] = useState(alertSettings);
+
+  // Alert policy lives in policy-service; localStorage is only a fallback cache
+  useEffect(() => {
+    let cancelled = false;
+    getPolicyApi(INVENTORY_ALERTS_POLICY)
+      .then((res) => {
+        if (cancelled || !res?.success || !res.data?.settings) return;
+        const settings = { ...DEFAULT_ALERT_SETTINGS, ...res.data.settings };
+        setAlertSettings(settings);
+        setSettingsForm(settings);
+        localStorage.setItem('nexus_inventory_alert_settings', JSON.stringify(settings));
+      })
+      .catch((err) => console.warn('[AdminDashboard] Policy service unavailable, using cached alert policy:', err.message));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [settingsSavedMessage, setSettingsSavedMessage] = useState('');
   const [isConfigOpen, setIsConfigOpen] = useState(false);
 
@@ -129,6 +160,10 @@ export default function AdminDashboard() {
       ...DEFAULT_PRODUCT_OPTIONS
     ])
   );
+  const productCategoryOptions =
+    categories.length > 0
+      ? categories.map((c) => c.name)
+      : ['Electronics', 'Audio', 'Wearables', 'Accessories'];
   const [isLoading, setIsLoading] = useState(true);
 
   // Search & Filter states
@@ -166,7 +201,11 @@ export default function AdminDashboard() {
   const [replenishAmount, setReplenishAmount] = useState('10');
   const [adjustError, setAdjustError] = useState('');
   const [isSubmittingStock, setIsSubmittingStock] = useState(false);
-  const [isAddStockFlow, setIsAddStockFlow] = useState(false); // opened from the "Add Stock" header button
+  // Add Stock modal (stock in a paid purchase batch)
+  const [isAddStockModalOpen, setIsAddStockModalOpen] = useState(false);
+  const [addStockForm, setAddStockForm] = useState({ purchaseId: '', expiresAt: '' });
+  const [addStockError, setAddStockError] = useState('');
+  const [isSubmittingAddStock, setIsSubmittingAddStock] = useState(false);
 
   // Purchase State & Filter
   const [purchases, setPurchases] = useState(() => {
@@ -191,8 +230,16 @@ export default function AdminDashboard() {
     productName: '',
     category: 'Electronics',
     quantity: '20',
-    supplier: ''
+    supplier: '',
+    totalCost: ''
   });
+
+  // Unit purchase price is derived: total cost ÷ quantity (null until both are valid)
+  const purchaseUnitPrice = (() => {
+    const total = parseFloat(purchaseForm.totalCost);
+    const qty = parseInt(purchaseForm.quantity, 10);
+    return total > 0 && qty > 0 ? Math.round((total / qty) * 100) / 100 : null;
+  })();
 
   // Sale Modal State
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
@@ -305,15 +352,22 @@ export default function AdminDashboard() {
     return (totalSalesRevenue / validOrders.length).toFixed(2);
   }, [orders, totalSalesRevenue]);
 
-  const handleSaveSettings = (e) => {
+  const handleSaveSettings = async (e) => {
     if (e) e.preventDefault();
-    const updated = {
+    let updated = {
       lowStockThreshold: Math.max(1, parseInt(settingsForm.lowStockThreshold, 10) || 5),
       expiryWarningDays: Math.max(1, parseInt(settingsForm.expiryWarningDays, 10) || 15),
       enableLowStockAlerts: true,
       enableExpiryAlerts: true,
       highlightOutOfStock: true
     };
+    try {
+      const res = await updatePolicyApi(INVENTORY_ALERTS_POLICY, updated);
+      if (res?.success && res.data?.settings) updated = { ...DEFAULT_ALERT_SETTINGS, ...res.data.settings };
+    } catch (err) {
+      toast.error(`Policy not saved: ${err.message}`);
+      return;
+    }
     setAlertSettings(updated);
     setSettingsForm(updated);
     localStorage.setItem('nexus_inventory_alert_settings', JSON.stringify(updated));
@@ -323,7 +377,13 @@ export default function AdminDashboard() {
     setTimeout(() => setSettingsSavedMessage(''), 4500);
   };
 
-  const handleResetSettings = () => {
+  const handleResetSettings = async () => {
+    try {
+      await resetPolicyApi(INVENTORY_ALERTS_POLICY);
+    } catch (err) {
+      toast.error(`Policy not reset: ${err.message}`);
+      return;
+    }
     setSettingsForm(DEFAULT_ALERT_SETTINGS);
     setAlertSettings(DEFAULT_ALERT_SETTINGS);
     localStorage.setItem('nexus_inventory_alert_settings', JSON.stringify(DEFAULT_ALERT_SETTINGS));
@@ -377,8 +437,8 @@ export default function AdminDashboard() {
     setImagePreview('');
     setIsUploadingImage(false);
     setProductForm({
-      name: productDropdownOptions[0] || '',
-      category: categories[0]?.name || '',
+      name: '',
+      category: productCategoryOptions[0] || '',
       price: '',
       stock: '0',
       description: '',
@@ -388,6 +448,10 @@ export default function AdminDashboard() {
   };
 
   const handleOpenEditProduct = (prod) => {
+    if (isProductPurchased(prod)) {
+      toast.error(`"${prod.name}" has purchase batches and can't be edited.`);
+      return;
+    }
     setEditingProductId(prod.id);
     setFormError('');
     setImagePreview(prod.image || '');
@@ -395,7 +459,7 @@ export default function AdminDashboard() {
     setProductForm({
       name: prod.name,
       category: prod.category,
-      price: prod.price || '29.99',
+      price: String(prod.price ?? 0),
       stock: prod.stock != null ? String(prod.stock) : '10',
       description: prod.description || '',
       image: prod.image || ''
@@ -445,9 +509,10 @@ export default function AdminDashboard() {
     const validation = productSchema.safeParse({
       name: productForm.name,
       category: productForm.category,
-      price: parseFloat(productForm.price),
-      stock: parseInt(productForm.stock, 10),
-      description: productForm.description
+      price: parseFloat(productForm.price) || 0,
+      stock: parseInt(productForm.stock, 10) || 0,
+      description: productForm.description,
+      image: productForm.image
     });
 
     if (!validation.success) {
@@ -460,10 +525,10 @@ export default function AdminDashboard() {
         const res = await updateProductApi(editingProductId, {
           name: productForm.name,
           category: productForm.category,
-          price: parseFloat(productForm.price),
-          stock: parseInt(productForm.stock, 10),
-          description: productForm.description,
-          image: productForm.image
+          price: parseFloat(productForm.price) || 0,
+          stock: parseInt(productForm.stock, 10) || 0,
+          description: productForm.description || '',
+          image: productForm.image || ''
         });
         if (res?.success) {
           addLocalEvent({
@@ -477,10 +542,10 @@ export default function AdminDashboard() {
         const res = await createProductApi({
           name: productForm.name,
           category: productForm.category,
-          price: parseFloat(productForm.price),
-          stock: parseInt(productForm.stock, 10),
-          description: productForm.description,
-          image: productForm.image
+          price: parseFloat(productForm.price) || 0,
+          stock: parseInt(productForm.stock, 10) || 0,
+          description: productForm.description || '',
+          image: productForm.image || ''
         });
         if (res?.success) {
           addLocalEvent({
@@ -496,13 +561,23 @@ export default function AdminDashboard() {
       fetchAllData();
       toast.success(editingProductId ? 'Product updated successfully!' : 'Product created successfully!');
     } catch (err) {
-      const msg = err.message || 'Operation failed';
+      const errorDetails = err.details?.errors
+        ? Object.entries(err.details.errors)
+            .map(([f, msgs]) => `${f}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+            .join('; ')
+        : '';
+      const msg = errorDetails ? `${err.message} (${errorDetails})` : err.message || 'Operation failed';
       setFormError(msg);
       toast.error(msg);
     }
   };
 
   const handleDeleteProduct = async (id) => {
+    const target = products.find((p) => p.id === id);
+    if (target && isProductPurchased(target)) {
+      toast.error(`"${target.name}" has purchase batches and can't be deleted.`);
+      return;
+    }
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
         const res = await deleteProductApi(id);
@@ -557,8 +632,7 @@ export default function AdminDashboard() {
   };
 
   // Stock Handlers
-  const handleOpenAdjustModal = (item, mode = 'replenish', pickProduct = false) => {
-    setIsAddStockFlow(pickProduct);
+  const handleOpenAdjustModal = (item, mode = 'replenish') => {
     setAdjustItem(item);
     setAdjustMode(mode);
     setAdjustQty(item.stockQuantity);
@@ -567,44 +641,75 @@ export default function AdminDashboard() {
     setIsAdjustModalOpen(true);
   };
 
-  // "Add Stock" header button: pick any catalog product and add units to it.
-  // Products without an inventory row yet get one created on save.
-  const addStockOptions = useMemo(() => {
-    const byId = new Map();
-    inventory.forEach((i) => {
-      byId.set(String(i.productId), {
-        productId: i.productId,
-        productName: i.productName || i.productId,
-        stockQuantity: Number(i.stockQuantity) || 0,
-        hasInventoryRow: true
-      });
-    });
-    products.forEach((p) => {
-      if (!byId.has(String(p.id))) {
-        byId.set(String(p.id), {
-          productId: p.id,
-          productName: p.name,
-          stockQuantity: 0,
-          hasInventoryRow: false
-        });
-      }
-    });
-    return [...byId.values()].sort((a, b) => String(a.productName).localeCompare(String(b.productName)));
-  }, [inventory, products]);
+  // "Add Stock": put a paid purchase batch into inventory.
+  // Batches already stocked are marked 'Stocked' on the purchase, so they drop out of this list.
+  const stockableBatches = useMemo(
+    () =>
+      purchases
+        .filter((p) => String(p.status || 'Paid').toLowerCase() === 'paid' && p.batchId)
+        .sort((a, b) => String(a.batchId).localeCompare(String(b.batchId))),
+    [purchases]
+  );
+  const selectedBatch = stockableBatches.find((p) => p.id === addStockForm.purchaseId) || null;
+  const selectedBatchProduct = selectedBatch
+    ? products.find((p) => p.name === selectedBatch.productName) || null
+    : null;
+  const todayIso = new Date().toISOString().slice(0, 10);
 
   const handleOpenAddStock = () => {
-    if (addStockOptions.length === 0) {
-      toast.error('Create a product first — there is nothing to add stock to yet.');
-      return;
-    }
-    handleOpenAdjustModal(addStockOptions[0], 'replenish', true);
+    setAddStockError('');
+    setAddStockForm({ purchaseId: stockableBatches[0]?.id || '', expiresAt: '' });
+    setIsAddStockModalOpen(true);
   };
 
-  const handleSelectAddStockProduct = (productId) => {
-    const option = addStockOptions.find((o) => String(o.productId) === String(productId));
-    if (option) {
-      setAdjustItem(option);
-      setAdjustError('');
+  const handleSubmitAddStock = async (e) => {
+    e.preventDefault();
+    setAddStockError('');
+    if (!selectedBatch) {
+      setAddStockError('Select a batch to add to stock.');
+      return;
+    }
+    if (!selectedBatchProduct) {
+      setAddStockError(`"${selectedBatch.productName}" no longer exists in Products & Categories.`);
+      return;
+    }
+    const quantity = parseInt(selectedBatch.quantity, 10);
+    if (!(quantity > 0)) {
+      setAddStockError('This batch has no quantity to add.');
+      return;
+    }
+
+    setIsSubmittingAddStock(true);
+    try {
+      await replenishStockApi(selectedBatchProduct.id, quantity, {
+        productName: selectedBatchProduct.name,
+        category: selectedBatch.category || selectedBatchProduct.category,
+        batchId: selectedBatch.batchId,
+        expiresAt: addStockForm.expiresAt || undefined
+      });
+      // Mark the batch as stocked so it can't be added twice
+      try {
+        await updatePurchaseApi(selectedBatch.id, { status: 'Stocked' });
+      } catch (statusErr) {
+        console.warn('[AdminDashboard] Stock added but purchase status not updated:', statusErr.message);
+      }
+      addLocalEvent({
+        type: 'StockReplenished',
+        productId: selectedBatchProduct.id,
+        productName: selectedBatchProduct.name,
+        batchId: selectedBatch.batchId,
+        amountAdded: quantity,
+        timestamp: new Date().toISOString()
+      });
+      setIsAddStockModalOpen(false);
+      fetchAllData();
+      toast.success(`Batch ${selectedBatch.batchId} added to stock (${quantity} units).`);
+    } catch (err) {
+      const msg = err.message || 'Could not add stock';
+      setAddStockError(msg);
+      toast.error(msg);
+    } finally {
+      setIsSubmittingAddStock(false);
     }
   };
 
@@ -637,12 +742,7 @@ export default function AdminDashboard() {
           setIsSubmittingStock(false);
           return;
         }
-        if (isAddStockFlow && !adjustItem.hasInventoryRow) {
-          // No inventory row yet: create it with the added amount
-          await updateStockApi(adjustItem.productId, amount, adjustItem.productName);
-        } else {
-          await replenishStockApi(adjustItem.productId, amount);
-        }
+        await replenishStockApi(adjustItem.productId, amount);
         addLocalEvent({
           type: 'StockReplenished',
           productId: adjustItem.productId,
@@ -683,15 +783,35 @@ export default function AdminDashboard() {
   };
 
   // Purchase Handlers
+  // Purchase form options come only from real data created in Products & Categories
+  const purchaseProductOptions = useMemo(
+    () =>
+      [...new Map(products.filter((p) => p.name).map((p) => [p.name, p])).values()].sort((a, b) =>
+        a.name.localeCompare(b.name)
+      ),
+    [products]
+  );
+  const purchaseCategoryOptions = useMemo(
+    () =>
+      [
+        ...new Set([
+          ...categories.map((c) => c.name),
+          ...products.map((p) => p.category)
+        ].filter(Boolean))
+      ].sort((a, b) => a.localeCompare(b)),
+    [categories, products]
+  );
+
   const handleOpenCreatePurchase = () => {
     setEditingPurchaseId(null);
     setPurchaseFormError('');
     setPurchaseForm({
       batchId: '',
-      productName: productDropdownOptions[0] || '',
-      category: categories[0]?.name || '',
+      productName: purchaseProductOptions[0]?.name || '',
+      category: purchaseProductOptions[0]?.category || purchaseCategoryOptions[0] || '',
       quantity: '',
-      supplier: ''
+      supplier: '',
+      totalCost: ''
     });
     setIsPurchaseModalOpen(true);
   };
@@ -704,7 +824,8 @@ export default function AdminDashboard() {
       productName: item.productName,
       category: item.category,
       quantity: String(item.quantity || '20'),
-      supplier: item.supplier || ''
+      supplier: item.supplier || '',
+      totalCost: Number(item.totalCost) > 0 ? String(Number(item.totalCost)) : ''
     });
     setIsPurchaseModalOpen(true);
   };
@@ -734,6 +855,12 @@ export default function AdminDashboard() {
       setPurchaseFormError('Quantity must be greater than 0.');
       return;
     }
+    const totalCost = Math.round(parseFloat(purchaseForm.totalCost) * 100) / 100;
+    if (isNaN(totalCost) || totalCost <= 0) {
+      setPurchaseFormError('Total purchase cost must be greater than 0.');
+      return;
+    }
+    const unitCost = Math.round((totalCost / qty) * 100) / 100;
 
     if (editingPurchaseId) {
       try {
@@ -741,7 +868,9 @@ export default function AdminDashboard() {
           productName: purchaseForm.productName,
           category: purchaseForm.category,
           quantity: qty,
-          supplier: purchaseForm.supplier
+          supplier: purchaseForm.supplier,
+          unitCost,
+          totalCost
         });
       } catch (err) {
         console.warn('Backend update failed:', err.message);
@@ -753,7 +882,9 @@ export default function AdminDashboard() {
               productName: purchaseForm.productName,
               category: purchaseForm.category,
               quantity: qty,
-              supplier: purchaseForm.supplier
+              supplier: purchaseForm.supplier,
+              unitCost,
+              totalCost
             }
           : p
       );
@@ -766,7 +897,10 @@ export default function AdminDashboard() {
         productName: purchaseForm.productName,
         category: purchaseForm.category,
         quantity: qty,
-        supplier: purchaseForm.supplier
+        supplier: purchaseForm.supplier,
+        unitCost,
+        totalCost,
+        status: 'Paid'
       };
       try {
         await createPurchaseApi(newPurchase);
@@ -1000,6 +1134,15 @@ export default function AdminDashboard() {
   // =========================================================================
   // TanStack Table Column Definitions (Powered by @tanstack/react-table)
   // =========================================================================
+  // Products with at least one purchase batch are locked (no edit/delete).
+  // Purchases reference products by name; product-category-service enforces the same rule.
+  const purchasedProductNames = useMemo(
+    () => new Set(purchases.map((p) => String(p.productName || '').trim().toLowerCase()).filter(Boolean)),
+    [purchases]
+  );
+  const isProductPurchased = (product) =>
+    purchasedProductNames.has(String(product?.name || '').trim().toLowerCase());
+
   const productColumns = useMemo(
     () => [
       {
@@ -1055,28 +1198,39 @@ export default function AdminDashboard() {
         header: 'Action',
         id: 'action',
         cell: ({ row }) => (
-          <div className="table-actions">
-            <button
-              type="button"
-              className="btn-table-edit"
-              onClick={() => handleOpenEditProduct(row.original)}
-              title="Edit Product"
-            >
-              <Edit2 size={14} />
-            </button>
-            <button
-              type="button"
-              className="btn-table-delete"
-              onClick={() => handleDeleteProduct(row.original.id)}
-              title="Delete Product"
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
+          (() => {
+            const locked = isProductPurchased(row.original);
+            const lockedReason = 'Locked: this product has purchase batches, so it cannot be edited or deleted';
+            return (
+              <div className="table-actions">
+                <button
+                  type="button"
+                  className="btn-table-edit"
+                  onClick={() => handleOpenEditProduct(row.original)}
+                  title={locked ? lockedReason : 'Edit Product'}
+                  aria-label={locked ? `Edit ${row.original.name} (locked)` : `Edit ${row.original.name}`}
+                  disabled={locked}
+                >
+                  <Edit2 size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="btn-table-delete"
+                  onClick={() => handleDeleteProduct(row.original.id)}
+                  title={locked ? lockedReason : 'Delete Product'}
+                  aria-label={locked ? `Delete ${row.original.name} (locked)` : `Delete ${row.original.name}`}
+                  disabled={locked}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            );
+          })()
         )
       }
     ],
-    []
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [purchasedProductNames]
   );
 
   const inventoryColumns = useMemo(
@@ -1367,11 +1521,6 @@ export default function AdminDashboard() {
         cell: ({ row }) => (
           <div className="product-cell">
             <div className="table-item-title font-semibold">{row.original.productName}</div>
-            {row.original.supplier && (
-              <div className="text-xs text-muted" style={{ fontSize: '0.78rem' }}>
-                Supplier: {row.original.supplier}
-              </div>
-            )}
           </div>
         )
       },
@@ -1381,27 +1530,64 @@ export default function AdminDashboard() {
         cell: ({ row }) => <span className="cat-tag">{row.original.category}</span>
       },
       {
-        header: 'Action',
-        id: 'action',
+        header: 'Quantity',
+        accessorKey: 'quantity',
         cell: ({ row }) => (
-          <div className="table-actions">
-            <button
-              type="button"
-              className="btn-table-edit"
-              onClick={() => handleOpenEditPurchase(row.original)}
-              title="Edit Purchase"
-            >
-              <Edit2 size={14} />
-            </button>
-            <button
-              type="button"
-              className="btn-table-delete"
-              onClick={() => handleDeletePurchase(row.original.id)}
-              title="Delete Purchase"
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
+          <span className="font-semibold">
+            {Number(row.original.quantity) || 0}
+          </span>
+        )
+      },
+      {
+        header: 'Total Purchase Cost',
+        id: 'totalPurchaseCost',
+        accessorKey: 'totalCost',
+        cell: ({ row }) => {
+          const qty = Number(row.original.quantity) || 0;
+          const total = Number(
+            row.original.totalCost != null && row.original.totalCost !== ''
+              ? row.original.totalCost
+              : (qty > 0 && row.original.unitCost != null ? Number(row.original.unitCost) * qty : 0)
+          ) || 0;
+          return (
+            <span className="font-bold text-emerald" style={{ fontSize: '0.96rem' }}>
+              ${total.toFixed(2)}
+            </span>
+          );
+        }
+      },
+      {
+        header: 'Unit Purchase Price',
+        id: 'unitPurchasePrice',
+        accessorKey: 'unitCost',
+        cell: ({ row }) => {
+          const qty = Number(row.original.quantity) || 0;
+          const total = Number(row.original.totalCost) || 0;
+          const unit = Number(
+            row.original.unitCost != null && row.original.unitCost !== ''
+              ? row.original.unitCost
+              : (qty > 0 && total > 0 ? total / qty : 0)
+          ) || 0;
+          return (
+            <span style={{ fontSize: '0.92rem' }}>
+              ${unit.toFixed(2)}
+            </span>
+          );
+        }
+      },
+      {
+        header: 'supplier name',
+        id: 'supplierName',
+        accessorKey: 'supplier',
+        cell: ({ row }) => <span>{row.original.supplier || row.original.supplierName || '—'}</span>
+      },
+      {
+        header: 'Status',
+        id: 'status',
+        cell: ({ row }) => (
+          <span className="status-badge paid">
+            <CheckCircle2 size={13} /> {row.original.status || 'Paid'}
+          </span>
         )
       }
     ],
@@ -1509,7 +1695,7 @@ export default function AdminDashboard() {
                 type="button"
                 className="btn-table-edit"
                 onClick={() => setIsConfigOpen(true)}
-                title="Edit Settings"
+                title="Edit Policy"
               >
                 <Edit2 size={14} />
               </button>
@@ -1517,7 +1703,7 @@ export default function AdminDashboard() {
                 type="button"
                 className="btn-table-delete"
                 onClick={handleResetSettings}
-                title="Reset / Delete Settings"
+                title="Reset / Delete Policy"
               >
                 <Trash2 size={14} />
               </button>
@@ -1599,14 +1785,14 @@ export default function AdminDashboard() {
             <span className="admin-nav-count">{orders.length}</span>
           </button>
 
-          <span className="side-section-label">System &amp; Settings</span>
-          {/* SETTINGS SIDEBAR ITEM */}
+          <span className="side-section-label">System &amp; Policy</span>
+          {/* POLICY SIDEBAR ITEM */}
           <button
-            className={`admin-nav-item ${activeAdminTab === 'settings' ? 'active' : ''}`}
-            onClick={() => setActiveAdminTab('settings')}
+            className={`admin-nav-item ${activeAdminTab === 'policy' || activeAdminTab === 'settings' ? 'active' : ''}`}
+            onClick={() => setActiveAdminTab('policy')}
           >
-            <Settings size={18} />
-            <span>Settings</span>
+            <ShieldCheck size={18} />
+            <span>Policy</span>
             {(lowStockCount > 0 || expiringCount > 0) && (
               <span
                 style={{
@@ -1911,13 +2097,13 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB 5: SYSTEM & ALERT SETTINGS */}
-          {activeAdminTab === 'settings' && (
+          {/* TAB 5: SYSTEM & ALERT POLICY */}
+          {(activeAdminTab === 'policy' || activeAdminTab === 'settings') && (
             <div className="admin-view-content">
               {/* Header */}
               <div className="admin-page-header">
                 <div className="admin-page-heading">
-                  <h2 className="admin-view-title">Settings</h2>
+                  <h2 className="admin-view-title">Policy</h2>
                   <p className="admin-view-sub">
                     Configure low stock threshold and expiration notice parameters.
                   </p>
@@ -1927,7 +2113,7 @@ export default function AdminDashboard() {
                     type="button"
                     className="btn-table-edit"
                     onClick={() => setIsConfigOpen((prev) => !prev)}
-                    title="Edit Settings"
+                    title="Edit Policy"
                     style={{ width: '36px', height: '36px', borderRadius: '8px' }}
                   >
                     <Edit2 size={16} />
@@ -1936,7 +2122,7 @@ export default function AdminDashboard() {
                     type="button"
                     className="btn-table-delete"
                     onClick={handleResetSettings}
-                    title="Reset Settings"
+                    title="Reset Policy"
                     style={{ width: '36px', height: '36px', borderRadius: '8px' }}
                   >
                     <Trash2 size={16} />
@@ -1995,16 +2181,22 @@ export default function AdminDashboard() {
 
             <form onSubmit={handleSaveProduct} className="admin-form">
               <div className="form-group">
-                <label>Product</label>
+                <label htmlFor="product-name">Product</label>
                 <select
+                  id="product-name"
                   value={productForm.name}
                   onChange={(e) => {
-                    const selectedName = e.target.value;
-                    const matched = products.find((p) => p.name === selectedName);
+                    const selected = e.target.value;
+                    const matched = products.find((p) => p.name === selected);
+                    const suggested = DEFAULT_PRODUCT_CATALOG.find((p) => p.name === selected);
+                    const suggestedCategory =
+                      suggested && productCategoryOptions.includes(suggested.category) ? suggested.category : null;
                     setProductForm((prev) => ({
                       ...prev,
-                      name: selectedName,
-                      category: matched?.category || prev.category,
+                      name: selected,
+                      category: matched?.category || suggestedCategory || prev.category,
+                      price: matched ? String(matched.price) : prev.price,
+                      description: matched?.description || suggested?.description || prev.description,
                       image: matched?.image || prev.image
                     }));
                     if (matched?.image) {
@@ -2023,17 +2215,30 @@ export default function AdminDashboard() {
               </div>
 
               <div className="form-group">
-                <label>Category</label>
+                <label htmlFor="product-category">Category</label>
                 <select
+                  id="product-category"
                   value={productForm.category}
                   onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
+                  required
                 >
-                  {(categories.length > 0 ? categories.map((c) => c.name) : ['Electronics', 'Audio', 'Wearables', 'Accessories']).map((catName) => (
+                  {productCategoryOptions.map((catName) => (
                     <option key={catName} value={catName}>
                       {catName}
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="product-description">Description</label>
+                <textarea
+                  id="product-description"
+                  value={productForm.description}
+                  onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                  placeholder="Enter product description, specifications, or key features..."
+                  rows={3}
+                />
               </div>
 
               <div className="form-group">
@@ -2054,7 +2259,7 @@ export default function AdminDashboard() {
                               <Upload size={14} /> Change Image
                               <input
                                 type="file"
-                                accept="image/jpeg,image/png,image/webp,image/gif"
+                                accept="image/*"
                                 onChange={handleImageChange}
                                 style={{ display: 'none' }}
                               />
@@ -2074,7 +2279,7 @@ export default function AdminDashboard() {
                     <label className="image-dropzone">
                       <input
                         type="file"
-                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        accept="image/*"
                         onChange={handleImageChange}
                         style={{ display: 'none' }}
                       />
@@ -2185,43 +2390,61 @@ export default function AdminDashboard() {
 
             <form onSubmit={handleSavePurchase} className="purchase-modal-form" style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '16px' }}>
               <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '2px' }}>Product</label>
-                <input
-                  type="text"
-                  list="purchase-product-options"
-                  placeholder="Select or enter product name"
+                <label htmlFor="purchase-product" style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '2px' }}>Product</label>
+                <select
+                  id="purchase-product"
                   value={purchaseForm.productName}
-                  onChange={(e) => setPurchaseForm({ ...purchaseForm, productName: e.target.value })}
+                  onChange={(e) => {
+                    const selected = purchaseProductOptions.find((p) => p.name === e.target.value);
+                    setPurchaseForm({
+                      ...purchaseForm,
+                      productName: e.target.value,
+                      category: selected?.category || purchaseForm.category
+                    });
+                  }}
                   style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.92rem' }}
                   required
-                />
-                <datalist id="purchase-product-options">
-                  {productDropdownOptions.map((opt) => (
-                    <option key={opt} value={opt} />
+                >
+                  <option value="" disabled>
+                    {purchaseProductOptions.length === 0 ? 'No products yet' : '-- Select a Product --'}
+                  </option>
+                  {purchaseProductOptions.map((p) => (
+                    <option key={p.id || p.name} value={p.name}>
+                      {p.name}
+                    </option>
                   ))}
-                </datalist>
+                  {/* keep an older purchase's product visible when editing */}
+                  {purchaseForm.productName &&
+                    !purchaseProductOptions.some((p) => p.name === purchaseForm.productName) && (
+                      <option value={purchaseForm.productName}>{purchaseForm.productName}</option>
+                    )}
+                </select>
+                {purchaseProductOptions.length === 0 && (
+                  <span className="text-muted text-xs">
+                    Create a product in <strong>Products &amp; Categories</strong> first.
+                  </span>
+                )}
               </div>
 
               <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '2px' }}>Catagory</label>
+                <label htmlFor="purchase-category" style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '2px' }}>Category</label>
                 <select
+                  id="purchase-category"
                   value={purchaseForm.category}
                   onChange={(e) => setPurchaseForm({ ...purchaseForm, category: e.target.value })}
                   style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.92rem' }}
                   required
                 >
-                  {categories.map((c) => (
-                    <option key={c.id || c.name} value={c.name}>
-                      {c.name}
+                  <option value="" disabled>
+                    {purchaseCategoryOptions.length === 0 ? 'No categories yet' : '-- Select a Category --'}
+                  </option>
+                  {purchaseCategoryOptions.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
                     </option>
                   ))}
-                  {categories.length === 0 && (
-                    <>
-                      <option value="Electronics">Electronics</option>
-                      <option value="Audio">Audio</option>
-                      <option value="Fitness">Fitness</option>
-                      <option value="Accessories">Accessories</option>
-                    </>
+                  {purchaseForm.category && !purchaseCategoryOptions.includes(purchaseForm.category) && (
+                    <option value={purchaseForm.category}>{purchaseForm.category}</option>
                   )}
                 </select>
               </div>
@@ -2252,6 +2475,38 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
+              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label htmlFor="purchase-total-cost" style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '2px' }}>Total Purchase Cost</label>
+                  <input
+                    id="purchase-total-cost"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="e.g. 1000.00"
+                    value={purchaseForm.totalCost}
+                    onChange={(e) => setPurchaseForm({ ...purchaseForm, totalCost: e.target.value })}
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.92rem' }}
+                    required
+                  />
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label htmlFor="purchase-unit-price" style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '2px' }}>Unit Purchase Price</label>
+                  <input
+                    id="purchase-unit-price"
+                    type="text"
+                    readOnly
+                    tabIndex={-1}
+                    value={purchaseUnitPrice !== null ? purchaseUnitPrice.toFixed(2) : ''}
+                    placeholder="Calculated automatically"
+                    aria-describedby="purchase-unit-price-hint"
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: '1px dashed var(--border-color)', fontSize: '0.92rem', background: 'var(--bg-secondary)', color: 'var(--text-main)', fontWeight: 600, cursor: 'default' }}
+                  />
+                  <span id="purchase-unit-price-hint" className="text-muted text-xs">Total cost ÷ quantity</span>
+                </div>
+              </div>
+
               <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
                 <button
                   type="button"
@@ -2260,8 +2515,96 @@ export default function AdminDashboard() {
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn-save">
+                <button
+                  type="submit"
+                  className="btn-save"
+                  disabled={!editingPurchaseId && purchaseProductOptions.length === 0}
+                >
                   {editingPurchaseId ? 'Update Purchase' : 'Save Purchase'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Stock Modal (from a paid purchase batch) */}
+      {isAddStockModalOpen && (
+        <div className="modal-backdrop" onClick={() => setIsAddStockModalOpen(false)}>
+          <div className="modal-content admin-form-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Add Stock</h3>
+            <p className="text-muted text-sm">Move a paid purchase batch into warehouse inventory.</p>
+
+            {addStockError && (
+              <div className="auth-alert error mb-3">
+                <AlertTriangle size={16} />
+                <span>{addStockError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitAddStock} className="admin-form">
+              <div className="form-group">
+                <label htmlFor="add-stock-batch">Batch ID</label>
+                <select
+                  id="add-stock-batch"
+                  value={addStockForm.purchaseId}
+                  onChange={(e) => {
+                    setAddStockForm({ ...addStockForm, purchaseId: e.target.value });
+                    setAddStockError('');
+                  }}
+                  required
+                >
+                  <option value="" disabled>
+                    {stockableBatches.length === 0 ? 'No paid batches to stock' : '-- Select a Batch --'}
+                  </option>
+                  {stockableBatches.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.batchId} — {p.productName} ({p.quantity} units)
+                    </option>
+                  ))}
+                </select>
+                {stockableBatches.length === 0 && (
+                  <span className="text-muted text-xs">
+                    Record a purchase in <strong>Purchase</strong> first. Batches already stocked are not listed.
+                  </span>
+                )}
+              </div>
+
+              <div className="form-row-2">
+                <div className="form-group">
+                  <label htmlFor="add-stock-product">Product</label>
+                  <input id="add-stock-product" type="text" value={selectedBatch?.productName || ''} placeholder="From the batch" readOnly />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="add-stock-category">Category</label>
+                  <input id="add-stock-category" type="text" value={selectedBatch?.category || ''} placeholder="From the batch" readOnly />
+                </div>
+              </div>
+
+              <div className="form-row-2">
+                <div className="form-group">
+                  <label htmlFor="add-stock-qty">Quantity</label>
+                  <input id="add-stock-qty" type="text" value={selectedBatch ? `${selectedBatch.quantity} units` : ''} placeholder="From the batch" readOnly />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="add-stock-expires">Expires At</label>
+                  <input
+                    id="add-stock-expires"
+                    type="date"
+                    min={todayIso}
+                    value={addStockForm.expiresAt}
+                    onChange={(e) => setAddStockForm({ ...addStockForm, expiresAt: e.target.value })}
+                  />
+                  <span className="text-muted text-xs">Leave empty if the product doesn't expire.</span>
+                </div>
+              </div>
+
+              <div className="modal-footer-btns">
+                <button type="button" className="btn-cancel" onClick={() => setIsAddStockModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-save" disabled={isSubmittingAddStock || !selectedBatch}>
+                  {isSubmittingAddStock ? 'Adding...' : 'Add Stock'}
                 </button>
               </div>
             </form>
@@ -2274,10 +2617,8 @@ export default function AdminDashboard() {
         <div className="modal-backdrop" onClick={() => setIsAdjustModalOpen(false)}>
           <div className="modal-content admin-form-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header-with-badge">
-              <h3>{adjustMode === 'set' ? 'Set Stock Level' : isAddStockFlow ? 'Add Stock' : 'Replenish Inventory'}</h3>
-              {!isAddStockFlow && (
-                <p className="text-muted text-sm">{adjustItem.productName} (ID: {adjustItem.productId})</p>
-              )}
+              <h3>{adjustMode === 'set' ? 'Set Stock Level' : 'Replenish Inventory'}</h3>
+              <p className="text-muted text-sm">{adjustItem.productName} (ID: {adjustItem.productId})</p>
             </div>
 
             {adjustError && (
@@ -2288,24 +2629,6 @@ export default function AdminDashboard() {
             )}
 
             <form onSubmit={handleSubmitStockChange} className="admin-form">
-              {isAddStockFlow && (
-                <div className="form-group">
-                  <label htmlFor="add-stock-product">Product</label>
-                  <select
-                    id="add-stock-product"
-                    value={adjustItem.productId}
-                    onChange={(e) => handleSelectAddStockProduct(e.target.value)}
-                    required
-                  >
-                    {addStockOptions.map((item) => (
-                      <option key={item.productId} value={item.productId}>
-                        {item.productName} — {item.hasInventoryRow ? `${item.stockQuantity} in stock` : 'not stocked yet'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
               {adjustMode === 'set' ? (
                 <div className="form-group">
                   <label>New Stock Quantity</label>
@@ -2323,7 +2646,7 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <div className="form-group">
-                  <label>{isAddStockFlow ? 'Quantity to Add' : 'Units to Add (Replenish)'}</label>
+                  <label>Units to Add (Replenish)</label>
                   <input
                     type="number"
                     min="1"
@@ -2351,7 +2674,7 @@ export default function AdminDashboard() {
                   className="btn-save"
                   disabled={isSubmittingStock}
                 >
-                  {isSubmittingStock ? 'Saving...' : adjustMode === 'set' ? 'Update Stock Count' : isAddStockFlow ? 'Add Stock' : 'Replenish Inventory'}
+                  {isSubmittingStock ? 'Saving...' : adjustMode === 'set' ? 'Update Stock Count' : 'Replenish Inventory'}
                 </button>
               </div>
             </form>

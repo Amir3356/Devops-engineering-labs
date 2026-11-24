@@ -19,7 +19,7 @@ export default class PurchaseModel {
     this.supplier = supplier || '';
     this.unitCost = parseFloat(unitCost) || 0.0;
     this.totalCost = parseFloat(totalCost) || (this.unitCost * this.quantity);
-    this.status = status || 'Received';
+    this.status = status || 'Paid';
     this.createdAt = createdAt || new Date().toISOString();
   }
 }

@@ -39,12 +39,26 @@ class InventoryService {
     return results;
   }
 
-  async replenishProduct(productId, amount) {
+  /**
+   * @param {object} [batch] optional { productName, category, batchId, expiresAt }.
+   * With a productName the row is created when missing and the batch details are stored.
+   */
+  async replenishProduct(productId, amount, batch = {}) {
     const qty = parseInt(amount, 10);
     if (isNaN(qty) || qty <= 0) {
       throw new Error('Replenishment amount must be greater than 0');
     }
-    return inventoryRepository.replenishStock(productId, qty);
+    if (batch.expiresAt && !/^\d{4}-\d{2}-\d{2}$/.test(batch.expiresAt)) {
+      throw new Error('expiresAt must be a date in YYYY-MM-DD format');
+    }
+    if (batch.productName) {
+      return inventoryRepository.addBatchStock({ productId, quantity: qty, ...batch });
+    }
+    const updated = await inventoryRepository.replenishStock(productId, qty);
+    if (!updated) {
+      throw new Error(`No inventory record for product ${productId}`);
+    }
+    return updated;
   }
 
   async checkAvailability(items) {

@@ -35,7 +35,7 @@ class PurchaseService {
       supplier: payload.supplier || '',
       unitCost,
       totalCost,
-      status: payload.status || 'Received',
+      status: payload.status || 'Paid',
       createdAt: new Date().toISOString()
     });
   }
@@ -44,7 +44,8 @@ class PurchaseService {
     const existing = await this.getPurchaseById(id);
     const qty = payload.quantity !== undefined ? parseInt(payload.quantity, 10) : existing.quantity;
     const unitCost = payload.unitCost !== undefined ? parseFloat(payload.unitCost) : existing.unitCost;
-    const totalCost = unitCost * qty;
+    // Keep the total the admin entered; only derive it when it wasn't sent
+    const totalCost = payload.totalCost !== undefined ? parseFloat(payload.totalCost) : unitCost * qty;
 
     return purchaseRepository.update(id, {
       ...payload,

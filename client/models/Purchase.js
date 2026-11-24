@@ -9,6 +9,8 @@ import { pick, toInt, toStr, toIsoDate, listOf } from './_fields';
  * @property {string} category
  * @property {number} quantity
  * @property {string} supplier
+ * @property {number} unitCost
+ * @property {number} totalCost
  * @property {string|null} createdAt
  */
 export const createPurchase = (raw = {}) => ({
@@ -17,7 +19,9 @@ export const createPurchase = (raw = {}) => ({
   productName: toStr(pick(raw, 'productName', 'product_name')),
   category: toStr(pick(raw, 'category')),
   quantity: toInt(pick(raw, 'quantity')),
-  supplier: toStr(pick(raw, 'supplier')),
+  supplier: toStr(pick(raw, 'supplier', 'supplierName', 'supplier_name')),
+  unitCost: Number(pick(raw, 'unitCost', 'unit_cost', 'unitPurchasePrice', 'unit_purchase_price')) || 0,
+  totalCost: Number(pick(raw, 'totalCost', 'total_cost', 'totalPurchaseCost', 'total_purchase_cost')) || 0,
   createdAt: toIsoDate(pick(raw, 'createdAt', 'created_at')),
 });
 
@@ -29,6 +33,7 @@ export const emptyPurchaseForm = (productName = '', category = '') => ({
   category,
   quantity: '',
   supplier: '',
+  totalCost: '',
 });
 
 export const purchaseToForm = (purchase) => ({
@@ -37,6 +42,7 @@ export const purchaseToForm = (purchase) => ({
   category: purchase.category,
   quantity: String(purchase.quantity || ''),
   supplier: purchase.supplier,
+  totalCost: purchase.totalCost ? String(purchase.totalCost) : '',
 });
 
 export const purchaseFormToApi = (form) => ({
@@ -44,4 +50,6 @@ export const purchaseFormToApi = (form) => ({
   category: toStr(form.category),
   quantity: toInt(form.quantity),
   supplier: toStr(form.supplier),
+  unitCost: form.unitCost ? Number(form.unitCost) : 0,
+  totalCost: form.totalCost ? Number(form.totalCost) : 0,
 });

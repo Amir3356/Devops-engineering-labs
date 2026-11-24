@@ -65,12 +65,17 @@ class InventoryController {
 
   async replenishStock(req, res) {
     try {
-      const { productId, amount } = req.body;
+      const { productId, amount, productName, category, batchId, expiresAt } = req.body;
       if (!productId || !amount) {
         return error(res, 'productId and amount are required', 400);
       }
 
-      const updated = await inventoryService.replenishProduct(productId, amount);
+      const updated = await inventoryService.replenishProduct(productId, amount, {
+        productName,
+        category,
+        batchId,
+        expiresAt
+      });
       return success(res, updated.toJSON(), 'Stock replenished successfully');
     } catch (err) {
       return error(res, err.message, 400);

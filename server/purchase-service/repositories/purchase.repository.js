@@ -18,7 +18,7 @@ class PurchaseRepository {
           supplier VARCHAR(128),
           unit_cost NUMERIC(10, 2) DEFAULT 0.00,
           total_cost NUMERIC(10, 2) DEFAULT 0.00,
-          status VARCHAR(32) DEFAULT 'Received',
+          status VARCHAR(32) DEFAULT 'Paid',
           created_at TIMESTAMPTZ DEFAULT NOW()
         );
       `);
@@ -71,7 +71,7 @@ class PurchaseRepository {
         data.supplier || '',
         data.unitCost || 0.0,
         data.totalCost || 0.0,
-        data.status || 'Received',
+        data.status || 'Paid',
         data.createdAt || new Date().toISOString()
       ]
     );

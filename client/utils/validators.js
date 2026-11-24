@@ -40,9 +40,11 @@ export const shippingSchema = z.object({
 });
 
 export const productSchema = z.object({
-  name: z.string().trim().min(3, 'Product name must be at least 3 characters'),
-  category: z.string().trim().min(2, 'Category is required'),
-  price: z.coerce.number().positive('Price must be greater than 0'),
-  stock: z.coerce.number().int().nonnegative('Stock cannot be negative'),
+  name: z.string().trim().min(1, 'Product name is required'),
+  category: z.string().trim().optional().default('General'),
+  // Price isn't entered on the Add Product form; new products start at 0
+  price: z.coerce.number().nonnegative('Price cannot be negative').default(0),
+  stock: z.coerce.number().int().nonnegative('Stock cannot be negative').default(0),
   description: z.string().optional(),
+  image: z.any().optional(),
 });

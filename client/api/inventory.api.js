@@ -30,11 +30,12 @@ export const updateStockApi = (productId, stockQuantity, productName) => {
   });
 };
 
-// Server expects { productId, amount } — amount may be negative to deduct
-export const replenishStockApi = (productId, amount) => {
+// Server expects { productId, amount } plus optional batch details
+// { productName, category, batchId, expiresAt (YYYY-MM-DD) }; with productName the row is created if missing.
+export const replenishStockApi = (productId, amount, batch = {}) => {
   return request('/api/inventory/replenish', {
     method: 'POST',
-    body: JSON.stringify({ productId, amount })
+    body: JSON.stringify({ productId, amount, ...batch })
   });
 };
 

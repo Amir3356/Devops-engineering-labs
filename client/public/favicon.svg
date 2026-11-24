@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="7" fill="#1f7a4d"/>
+  <!-- Shopping Bag outline -->
+  <path d="M10 11 C10 7.7, 12.7 5, 16 5 C19.3 5, 22 7.7, 22 11" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M7 11 L25 11 L23.5 25 C23.5 26.1, 22.6 27, 21.5 27 L10.5 27 C9.4 27, 8.5 26.1, 8.5 25 Z" fill="#ffffff"/>
+  <!-- Inner bag accent -->
+  <path d="M12 15 C12 17.2, 13.8 19, 16 19 C18.2 19, 20 17.2, 20 15" fill="none" stroke="#1f7a4d" stroke-width="1.8" stroke-linecap="round"/>
+</svg>

@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_MULTIPLE_DATABASES: auth_db,user_db,product_db,purchase_db,order_db,sale_db,inventory_db,notification_db
+      POSTGRES_MULTIPLE_DATABASES: auth_db,user_db,product_db,purchase_db,order_db,sale_db,inventory_db,notification_db,policy_db
     ports:
       - "5433:5432"
     volumes:
@@ -90,6 +90,7 @@ services:
     environment:
       PORT: 5002
       PRODUCT_DB_URL: postgresql://postgres:postgres@postgres:5432/product_db
+      PURCHASE_SERVICE_URL: http://purchase-service:5003
       JWT_SECRET: ecommerce-microservices-secret-key-2026
       DB_POOL_MAX: 20
       DB_POOL_IDLE_TIMEOUT: 30000
@@ -235,6 +236,30 @@ services:
       - ecommerce-net
 
   # ========================================================
+  # 8b. Policy Microservice (Port 5009)
+  # ========================================================
+  policy-service:
+    build:
+      context: ./server
+      dockerfile: policy-service/Dockerfile
+    container_name: policy-service
+    restart: unless-stopped
+    environment:
+      PORT: 5009
+      POLICY_DB_URL: postgresql://postgres:postgres@postgres:5432/policy_db
+      JWT_SECRET: ecommerce-microservices-secret-key-2026
+      DB_POOL_MAX: 20
+      DB_POOL_IDLE_TIMEOUT: 30000
+      DB_POOL_CONN_TIMEOUT: 5000
+    ports:
+      - "5009:5009"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ecommerce-net
+
+  # ========================================================
   # 9. API Gateway (Port 5000)
   # ========================================================
   api-gateway:
@@ -254,6 +279,7 @@ services:
       SALE_SERVICE_URL: http://sale-service:5005
       INVENTORY_SERVICE_URL: http://inventory-service:5006
       NOTIFICATION_SERVICE_URL: http://notification-service:5007
+      POLICY_SERVICE_URL: http://policy-service:5009
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
       MINIO_USE_SSL: "false"
@@ -273,6 +299,7 @@ services:
       - sale-service
       - inventory-service
       - notification-service
+      - policy-service
     networks:
       - ecommerce-net
 
