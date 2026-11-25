@@ -71,10 +71,7 @@ export function announceIfCatalogChanged(req, status) {
   }
   if (ORDER_WRITE.test(url)) {
     broadcast({ type: 'orders.updated' });
-    // Placing an order takes units out of stock
-    if (req.method === 'POST' && /^\/api\/orders\/?(\?|$)/.test(url)) {
-      broadcast({ type: 'catalog.updated', source: 'orders' });
-    }
+    // Stock changes from orders are announced from Kafka (StockReserved / StockRestored), see events.js
     return;
   }
   if (!CATALOG_WRITE.test(url) || NOT_A_CATALOG_CHANGE.test(url)) return;

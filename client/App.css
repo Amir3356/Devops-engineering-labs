@@ -1780,12 +1780,14 @@ input, select, textarea {
 }
 
 .status-badge.pending,
+.status-badge.awaitingstock,
 .status-badge.shipped {
   background: rgba(59, 130, 246, 0.2);
   color: #1d4ed8;
 }
 
 .status-badge.cancelled,
+.status-badge.rejected,
 .status-badge.alert {
   background: rgba(244, 63, 94, 0.2);
   color: #be123c;
@@ -4940,3 +4942,103 @@ td.font-mono-cell > span { display: block; }
 .reports-filter-field input[type="date"]:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(31, 122, 77, 0.14); }
 .reports-period-label { padding-bottom: 10px; font-size: 0.85rem; color: var(--text-muted); }
 .reports-period-label.error { color: var(--rose); font-weight: 600; }
+
+/* ===== Admin → Monitoring (embedded Grafana) ===== */
+.monitoring-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.monitoring-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.monitoring-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.monitoring-range select {
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-main);
+}
+
+.monitoring-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.monitoring-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-main);
+  font-size: 0.85rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.monitoring-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--primary-color);
+}
+
+.monitoring-frame {
+  width: 100%;
+  height: calc(100vh - 230px);
+  min-height: 560px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-card);
+}
+
+.monitoring-offline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 48px 20px;
+  border: 1px dashed var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.monitoring-offline h3 {
+  margin: 0;
+  color: var(--text-main);
+}
+
+.monitoring-offline code {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .monitoring-frame {
+    height: 70vh;
+    min-height: 420px;
+  }
+}

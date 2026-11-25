@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import config from '../config/index.js';
 import { error } from '../../utils/response.js';
+import { isTokenVersionValid } from '../../utils/tokenVersion.js';
 
 /** Helper to extract JWT from HttpOnly cookie or Authorization header */
 const extractToken = (req) => {
@@ -19,12 +20,31 @@ export const authenticateToken = (req, res, next) => {
     return error(res, 'Authentication required: Token missing', 401);
   }
 
-  jwt.verify(token, config.JWT_SECRET, (err, decoded) => {
+  jwt.verify(token, config.JWT_SECRET, async (err, decoded) => {
     if (err) {
       if (err.name === 'TokenExpiredError') {
         return error(res, 'Authentication failed: Token has expired', 401);
       }
       return error(res, 'Authentication failed: Invalid token', 403);
+    }
+
+    // Verify token version against centralized Redis
+    const userId = decoded.id || decoded.userId;
+    try {
+      const isValid = await isTokenVersionValid(userId, decoded.tokenVersion);
+      if (!isValid) {
+        res.clearCookie('token', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/'
+        });
+        return error(res, 'Authentication failed: Session has been invalidated. Please log in again.', 401, {
+          code: 'SESSION_REVOKED'
+        });
+      }
+    } catch (verErr) {
+      console.warn('[Auth Middleware] Token version check warning:', verErr.message);
     }
 
     req.user = decoded;
@@ -48,15 +68,19 @@ export const optionalAuth = (req, res, next) => {
   const token = extractToken(req);
 
   if (token) {
-    jwt.verify(token, config.JWT_SECRET, (err, decoded) => {
+    jwt.verify(token, config.JWT_SECRET, async (err, decoded) => {
       if (!err && decoded) {
-        req.user = decoded;
-        req.headers['authorization'] = `Bearer ${token}`;
-        req.headers['x-user-id'] = String(decoded.id || decoded.userId);
-        req.headers['x-user-phone'] = String(decoded.phone || '');
-        req.headers['x-user-role'] = String(decoded.role);
-        req.headers['x-user-email'] = String(decoded.email || '');
-        req.headers['x-user-name'] = encodeURIComponent(String(decoded.name || ''));
+        const userId = decoded.id || decoded.userId;
+        const isValid = await isTokenVersionValid(userId, decoded.tokenVersion).catch(() => false);
+        if (isValid) {
+          req.user = decoded;
+          req.headers['authorization'] = `Bearer ${token}`;
+          req.headers['x-user-id'] = String(decoded.id || decoded.userId);
+          req.headers['x-user-phone'] = String(decoded.phone || '');
+          req.headers['x-user-role'] = String(decoded.role);
+          req.headers['x-user-email'] = String(decoded.email || '');
+          req.headers['x-user-name'] = encodeURIComponent(String(decoded.name || ''));
+        }
       }
       next();
     });

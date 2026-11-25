@@ -4,13 +4,14 @@ import crypto from 'crypto';
  * Authentication Account Model
  */
 class AuthAccountModel {
-  constructor({ id, email, phone, password, role, name, createdAt, updatedAt }) {
+  constructor({ id, email, phone, password, role, name, tokenVersion, createdAt, updatedAt }) {
     this.id = id || `usr-${crypto.randomUUID()}`;
     this.email = (email || '').trim().toLowerCase();
     this.phone = (phone || '').trim();
     this.password = password; // bcrypt hashed password
     this.role = role || 'customer'; // 'customer' or 'admin'
     this.name = (name || '').trim();
+    this.tokenVersion = tokenVersion !== undefined ? parseInt(tokenVersion, 10) : 1;
     this.createdAt = createdAt || new Date().toISOString();
     this.updatedAt = updatedAt || new Date().toISOString();
   }
@@ -47,6 +48,7 @@ class AuthAccountModel {
       phone: this.phone,
       name: this.name,
       role: this.role,
+      tokenVersion: this.tokenVersion,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt
     };

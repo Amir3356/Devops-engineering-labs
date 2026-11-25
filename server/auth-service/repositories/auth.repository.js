@@ -27,6 +27,7 @@ class AuthRepository {
         );
         ALTER TABLE accounts ADD COLUMN IF NOT EXISTS email VARCHAR(128) UNIQUE;
         ALTER TABLE accounts ALTER COLUMN phone DROP NOT NULL;
+        ALTER TABLE accounts ADD COLUMN IF NOT EXISTS token_version INT NOT NULL DEFAULT 1;
       `);
 
       // Ensure initial Administrator credentials from environment variables if table is empty
@@ -62,6 +63,7 @@ class AuthRepository {
       password: r.password,
       role: r.role,
       name: r.name,
+      tokenVersion: r.token_version !== undefined ? parseInt(r.token_version, 10) : 1,
       createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
       updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
     });
@@ -130,6 +132,21 @@ class AuthRepository {
     const sql = `UPDATE accounts SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *;`;
     const res = await pool.query(sql, values);
     return this.mapRow(res.rows[0]);
+  }
+
+  async incrementTokenVersion(id) {
+    await this.ready;
+    const res = await pool.query(
+      'UPDATE accounts SET token_version = COALESCE(token_version, 1) + 1, updated_at = NOW() WHERE id = $1 RETURNING token_version',
+      [id]
+    );
+    return res.rows[0]?.token_version ? parseInt(res.rows[0].token_version, 10) : 1;
+  }
+
+  async getTokenVersion(id) {
+    await this.ready;
+    const res = await pool.query('SELECT token_version FROM accounts WHERE id = $1', [id]);
+    return res.rows[0]?.token_version ? parseInt(res.rows[0].token_version, 10) : 1;
   }
 }
 

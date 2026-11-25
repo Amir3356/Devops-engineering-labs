@@ -69,7 +69,7 @@ export default function OrderHistory() {
     });
   };
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status, reason) => {
     switch (status) {
       case 'Paid':
         return <span className="status-badge paid"><CheckCircle size={14} /> Paid</span>;
@@ -79,6 +79,14 @@ export default function OrderHistory() {
         return <span className="status-badge delivered"><CheckCircle size={14} /> Delivered</span>;
       case 'Cancelled':
         return <span className="status-badge cancelled"><XCircle size={14} /> Cancelled</span>;
+      case 'AwaitingStock':
+        return <span className="status-badge pending"><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Confirming</span>;
+      case 'Rejected':
+        return (
+          <span className="status-badge cancelled" title={reason || 'Not enough stock'}>
+            <XCircle size={14} /> Rejected · refunded
+          </span>
+        );
       default:
         return <span className="status-badge pending"><Clock size={14} /> Pending</span>;
     }
@@ -160,7 +168,7 @@ export default function OrderHistory() {
       {
         header: 'Status',
         id: 'status',
-        cell: ({ row }) => getStatusBadge(row.original.status)
+        cell: ({ row }) => getStatusBadge(row.original.status, row.original.statusReason)
       },
       {
         header: '',

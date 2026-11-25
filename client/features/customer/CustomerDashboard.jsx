@@ -30,7 +30,7 @@ import {
 export default function CustomerDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { addToCart, openCart, cartCount } = useCart();
+  const { addToCart, openCart, cartCount, cartItems } = useCart();
 
   // State initialized purely from live data
   const [products, setProducts] = useState([]);
@@ -137,6 +137,13 @@ export default function CustomerDashboard() {
   }, []);
 
   const handleAddToCart = (prod) => {
+    const inCart = cartItems.find((i) => i.id === prod.id)?.quantity || 0;
+    if (inCart >= prod.stock) {
+      toast.warning(`Only ${prod.stock} ${prod.name} in stock`, {
+        description: 'Your cart already holds all available units.'
+      });
+      return;
+    }
     addToCart(prod);
     toast.success(`${prod.name} added to cart!`, {
       action: {

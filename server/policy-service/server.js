@@ -10,7 +10,11 @@ initCache('policy');
 import policyRoutes from './routes/policy.routes.js';
 import { success } from '../utils/response.js';
 
+import { initMetrics } from '../utils/metrics.js';
 const app = express();
+
+// Prometheus: HTTP rate/errors/duration + Node runtime metrics at GET /metrics
+initMetrics(app, 'policy-service');
 
 app.use(cors(corsOptions));
 app.use(express.json());

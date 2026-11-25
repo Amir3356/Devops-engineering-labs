@@ -1,6 +1,8 @@
 import axios from 'axios';
+import jwt from 'jsonwebtoken';
 import config from './config/index.js';
 import { parseDurationToMs } from '../utils/duration.js';
+import { revokeAllUserSessions } from '../utils/tokenVersion.js';
 import { error } from '../utils/response.js';
 import { announceIfCatalogChanged } from './realtime.js';
 
@@ -52,6 +54,18 @@ const proxyRequest = (targetBaseUrl) => {
           maxAge: parseDurationToMs(config.JWT_EXPIRES_IN || '24h')
         });
       } else if (isAuthRoute && req.originalUrl.includes('logout')) {
+        const rawToken = req.cookies?.token || (req.headers['authorization'] && req.headers['authorization'].split(' ')[1]);
+        if (rawToken) {
+          try {
+            const decoded = jwt.decode(rawToken);
+            const userId = decoded?.id || decoded?.userId;
+            if (userId) {
+              await revokeAllUserSessions(userId);
+            }
+          } catch (e) {
+            // Handled
+          }
+        }
         res.clearCookie('token', {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',

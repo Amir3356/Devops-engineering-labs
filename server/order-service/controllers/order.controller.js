@@ -1,6 +1,15 @@
-import orderService from '../services/order.service.js';
-import { queueOrderReceipt } from '../services/receiptEmail.js';
+import orderService, { AWAITING_STOCK } from '../services/order.service.js';
 import { success, error } from '../../utils/response.js';
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function customerNameFrom(req) {
+  try {
+    return decodeURIComponent(req.headers['x-user-name'] || '') || req.body.customerName || '';
+  } catch {
+    return req.body.customerName || '';
+  }
+}
 
 /**
  * Order Controller
@@ -15,7 +24,9 @@ class OrderController {
         return error(res, 'Authentication required to place an order', 401);
       }
 
-      const { items, totalAmount, shippingAddress, paymentId, paymentStatus, status } = req.body;
+      const { items, totalAmount, shippingAddress, paymentId, paymentStatus, status, idempotencyKey } = req.body;
+      // Receipt goes to the email the customer signed up with (from the verified token via the gateway)
+      const email = String(req.headers['x-user-email'] || '');
 
       const order = await orderService.createOrder({
         customerId,
@@ -25,27 +36,29 @@ class OrderController {
         shippingAddress,
         paymentId,
         paymentStatus,
-        status
+        status,
+        customer: { email: EMAIL.test(email) ? email : null, name: customerNameFrom(req) },
+        idempotencyKey
       });
 
-      // Receipt goes to the email the customer signed up with (from the verified token via the gateway)
+      // Paid orders come back as AwaitingStock (202): inventory confirms or rejects them
+      // asynchronously, and the receipt is emailed from the OrderConfirmed event
       const json = order.toJSON();
+      const awaiting = json.status === AWAITING_STOCK;
       let notification = { status: 'skipped', reason: 'Order is not paid' };
-      if (String(json.status).toLowerCase() === 'paid' || ['paid', 'completed'].includes(String(json.paymentStatus).toLowerCase())) {
-        let customerName = '';
-        try {
-          customerName = decodeURIComponent(req.headers['x-user-name'] || '');
-        } catch {
-          customerName = '';
-        }
-        notification = queueOrderReceipt({
-          to: req.headers['x-user-email'],
-          customerName: customerName || req.body.customerName,
-          order: json
-        });
+      if (awaiting) {
+        notification = EMAIL.test(email)
+          ? { status: 'queued', to: email, when: 'after stock is confirmed' }
+          : { status: 'skipped', reason: 'No email address on this account' };
       }
 
-      return success(res, { ...json, notification }, 'Order created successfully', 201);
+      if (order.replayed) {
+        // Duplicate submit of the same checkout: nothing new was created or charged
+        return success(res, { ...json, notification, replayed: true }, 'Order already placed', 200);
+      }
+      return awaiting
+        ? success(res, { ...json, notification }, 'Order accepted; confirming stock', 202)
+        : success(res, { ...json, notification }, 'Order created successfully', 201);
     } catch (err) {
       return error(res, err.message, err.status || 400);
     }
@@ -99,7 +112,7 @@ class OrderController {
       const updated = await orderService.updateOrderStatus(id, status);
       return success(res, updated.toJSON(), `Order status updated to ${status}`);
     } catch (err) {
-      return error(res, err.message, 400);
+      return error(res, err.message, err.status || 400);
     }
   }
 
@@ -112,7 +125,7 @@ class OrderController {
       const cancelled = await orderService.cancelOrder(id, userId, userRole);
       return success(res, cancelled.toJSON(), 'Order cancelled successfully');
     } catch (err) {
-      return error(res, err.message, 400);
+      return error(res, err.message, err.status || 400);
     }
   }
 }

@@ -1,0 +1,60 @@
+# Prometheus scrape configuration for NexusCommerce (docker-compose network: ecommerce-net)
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+scrape_configs:
+  # Every Node service exposes GET /metrics (server/utils/metrics.js).
+  # Series already carry a `service` label; honor_labels keeps it as-is.
+  - job_name: services
+    honor_labels: true
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - api-gateway:5000
+          - auth-service:5008
+          - user-service:5001
+          - product-category-service:5002
+          - purchase-service:5003
+          - order-service:5004
+          - sale-service:5005
+          - inventory-service:5006
+          - notification-service:5007
+          - policy-service:5009
+    relabel_configs:
+      # Give `up` a service label too (so "which service is down" is visible)
+      - source_labels: [__address__]
+        regex: '([^:]+):\d+'
+        target_label: service
+        replacement: '$1'
+
+  # PostgreSQL server (all service databases: connections, transactions, deadlocks …)
+  - job_name: postgres
+    static_configs:
+      - targets: [postgres-exporter:9187]
+
+  # Both Redis instances through one exporter (multi-target pattern)
+  - job_name: redis
+    metrics_path: /scrape
+    static_configs:
+      - targets:
+          - redis://redis:6379        # cache + rate limiting
+          - redis://redis-queue:6379  # BullMQ job queues
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        regex: 'redis://([^:]+):\d+'
+        target_label: instance
+        replacement: '$1'
+      - target_label: __address__
+        replacement: redis-exporter:9121
+
+  # Kafka topics and consumer-group lag
+  - job_name: kafka
+    static_configs:
+      - targets: [kafka-exporter:9308]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]

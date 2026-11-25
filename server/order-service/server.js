@@ -6,8 +6,15 @@ import { corsOptions } from '../utils/cors.js';
 import config from './config/index.js';
 import orderRoutes from './routes/order.routes.js';
 import { success } from '../utils/response.js';
+import pool from './config/db.js';
+import { startOutboxRelay, startWithRetry, onShutdown } from '../utils/events/index.js';
+import { startInventoryConsumer } from './events/inventory.consumer.js';
 
+import { initMetrics, registerGaugeCollector } from '../utils/metrics.js';
 const app = express();
+
+// Prometheus: HTTP rate/errors/duration + Node runtime metrics at GET /metrics
+initMetrics(app, 'order-service');
 
 // Enable CORS using the official 'cors' package library
 app.use(cors(corsOptions));
@@ -54,6 +61,23 @@ if (isMainModule) {
     console.log(`   Health check: http://localhost:${PORT}/health`);
     console.log(`======================================================\n`);
   });
+  registerGaugeCollector({
+    name: 'orders_by_status',
+    help: 'Orders currently in each status (AwaitingStock, Paid, Rejected, Cancelled, …)',
+    labelNames: ['status'],
+    read: async () =>
+      (await pool.query('SELECT status, count(*)::int AS n FROM orders GROUP BY status')).rows.map((r) => ({
+        labels: { status: r.status },
+        value: r.n
+      }))
+  });
+  // Publish committed order events to Kafka (order.events)
+  const relay = startOutboxRelay({ pool, serviceName: 'order-service' });
+  onShutdown(() => relay.stop());
+  // Saga replies from inventory-service (StockReserved / StockRejected)
+  startWithRetry('Order Consumer', () => startInventoryConsumer(pool)).then((consumer) =>
+    onShutdown(() => consumer.disconnect())
+  );
 }
 
 export default app;

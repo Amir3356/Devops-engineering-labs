@@ -61,7 +61,9 @@ export const createOrderSchema = z.object({
   customerName: z.string().optional().nullable(),
   status: z.enum(['Pending', 'Paid', 'Processing', 'Shipped', 'Delivered', 'Cancelled']).optional(),
   paymentStatus: z.string().optional().nullable(),
-  paymentId: z.string().optional().nullable()
+  paymentId: z.string().optional().nullable(),
+  // One key per checkout attempt: a double-click or retry with the same key returns the same order
+  idempotencyKey: z.string().uuid().optional()
 });
 
 /**

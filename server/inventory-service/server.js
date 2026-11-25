@@ -9,8 +9,15 @@ import { initCache, cacheStatus } from '../utils/cache.js';
 initCache('inventory');
 import inventoryRoutes from './routes/inventory.routes.js';
 import { success } from '../utils/response.js';
+import pool from './config/db.js';
+import { startOutboxRelay, startWithRetry, onShutdown } from '../utils/events/index.js';
+import { startOrderConsumer } from './events/order.consumer.js';
 
+import { initMetrics, registerGaugeCollector } from '../utils/metrics.js';
 const app = express();
+
+// Prometheus: HTTP rate/errors/duration + Node runtime metrics at GET /metrics
+initMetrics(app, 'inventory-service');
 
 // Enable CORS using the official 'cors' package library
 app.use(cors(corsOptions));
@@ -58,6 +65,36 @@ if (isMainModule) {
     console.log(`   Health check: http://localhost:${PORT}/health`);
     console.log(`======================================================\n`);
   });
+  const stockSummary = async () =>
+    (await pool.query(
+      `SELECT COALESCE(sum(stock_quantity), 0)::int AS units,
+              count(*) FILTER (WHERE stock_quantity <= low_stock_threshold)::int AS low,
+              count(*) FILTER (WHERE stock_quantity = 0)::int AS out
+       FROM inventory_stock`
+    )).rows[0];
+  registerGaugeCollector({
+    name: 'inventory_units_in_stock',
+    help: 'Total units in stock across all products',
+    read: async () => [{ value: (await stockSummary()).units }]
+  });
+  registerGaugeCollector({
+    name: 'inventory_products',
+    help: 'Products by stock level (low = at or below their low-stock threshold)',
+    labelNames: ['level'],
+    read: async () => {
+      const s = await stockSummary();
+      return [
+        { labels: { level: 'low' }, value: s.low },
+        { labels: { level: 'out_of_stock' }, value: s.out }
+      ];
+    }
+  });
+  // Order saga: reserve/restore stock from order.events, reply on inventory.events
+  const relay = startOutboxRelay({ pool, serviceName: 'inventory-service' });
+  onShutdown(() => relay.stop());
+  startWithRetry('Inventory Consumer', () => startOrderConsumer(pool)).then((consumer) =>
+    onShutdown(() => consumer.disconnect())
+  );
 }
 
 export default app;

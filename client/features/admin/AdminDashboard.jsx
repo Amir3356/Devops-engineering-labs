@@ -59,9 +59,11 @@ import {
   Sliders,
   TrendingUp,
   DollarSign,
-  BarChart3
+  BarChart3,
+  Activity
 } from 'lucide-react';
 import ReportsView from './ReportsView';
+import MonitoringView from './MonitoringView';
 
 // Built-in product choices for the Add Product dropdown, with a suggested category each
 const DEFAULT_PRODUCT_CATALOG = [
@@ -87,12 +89,16 @@ const DEFAULT_ALERT_SETTINGS = {
 
 const DEFAULT_EXPIRIES = {};
 
+
+// Orders still awaiting stock, rejected for stock, or cancelled are not sales
+const countsAsSale = (o) => !['Cancelled', 'Rejected', 'AwaitingStock'].includes(o.status);
+
 export default function AdminDashboard() {
   const { addLocalEvent } = useEvents();
   const { user, logout } = useAuth();
 
   // Navigation tab state - default to 'catalog'
-  const [activeAdminTab, setActiveAdminTab] = useState('catalog'); // 'catalog' | 'inventory' | 'orders' | 'purchases' | 'settings'
+  const [activeAdminTab, setActiveAdminTab] = useState('catalog'); // 'catalog' | 'inventory' | 'orders' | 'purchases' | 'reports' | 'monitoring' | 'settings'
 
   // Alert & Notification Settings State
   const [alertSettings, setAlertSettings] = useState(() => {
@@ -383,7 +389,7 @@ export default function AdminDashboard() {
 
   const totalItemsSold = useMemo(() => {
     return orders
-      .filter((o) => o.status !== 'Cancelled')
+      .filter(countsAsSale)
       .reduce((sum, o) => {
         const items = Array.isArray(o.items) ? o.items : [];
         return sum + items.reduce((iSum, item) => iSum + (Number(item.quantity) || 1), 0);
@@ -395,7 +401,7 @@ export default function AdminDashboard() {
   }, [orders]);
 
   const averageOrderValue = useMemo(() => {
-    const validOrders = orders.filter((o) => o.status !== 'Cancelled');
+    const validOrders = orders.filter(countsAsSale);
     if (validOrders.length === 0) return '0.00';
     return (totalSalesRevenue / validOrders.length).toFixed(2);
   }, [orders, totalSalesRevenue]);
@@ -710,7 +716,9 @@ export default function AdminDashboard() {
       category: item.category || '',
       stockQuantity: String(item.stockQuantity ?? item.stock_quantity ?? ''),
       expiresAt: item.expiresAt || item.expires_at || '',
-      totalSellingPrice: item.totalSellingPrice != null ? String(Number(item.totalSellingPrice)) : ''
+      totalSellingPrice: item.totalSellingPrice != null ? String(Number(item.totalSellingPrice)) : '',
+      // Version of the row as loaded; the server rejects the save (409) if stock changed since
+      version: item.version
     });
     setIsEditStockModalOpen(true);
   };
@@ -741,7 +749,8 @@ export default function AdminDashboard() {
         category: editStockForm.category,
         batchId: editStockForm.batchId,
         expiresAt: editStockForm.expiresAt || null,
-        totalSellingPrice
+        totalSellingPrice,
+        expectedVersion: editStockForm.version
       });
 
       addLocalEvent({
@@ -761,6 +770,8 @@ export default function AdminDashboard() {
       const msg = err.message || 'Failed to update inventory stock';
       setEditStockError(msg);
       toast.error(msg);
+      // 409: an order or sale changed this stock while the form was open; load the fresh values
+      if (err.status === 409) fetchAllData();
     } finally {
       setIsSubmittingEditStock(false);
     }
@@ -865,7 +876,10 @@ export default function AdminDashboard() {
           setIsSubmittingStock(false);
           return;
         }
-        await updateStockApi(adjustItem.productId, quantity, adjustItem.productName);
+        await updateStockApi(adjustItem.productId, quantity, {
+          productName: adjustItem.productName,
+          expectedVersion: adjustItem.version
+        });
         addLocalEvent({
           type: 'StockUpdated',
           productId: adjustItem.productId,
@@ -898,6 +912,7 @@ export default function AdminDashboard() {
       const msg = err.message || 'Stock adjustment failed';
       setAdjustError(msg);
       toast.error(msg);
+      if (err.status === 409) fetchAllData();
     } finally {
       setIsSubmittingStock(false);
     }
@@ -1010,7 +1025,9 @@ export default function AdminDashboard() {
           totalCost
         });
       } catch (err) {
-        console.warn('Backend update failed:', err.message);
+        // Don't show a change the server didn't save
+        setPurchaseFormError(`Could not update the purchase: ${err.message}`);
+        return;
       }
       const updated = purchases.map((p) =>
         p.id === editingPurchaseId
@@ -1041,7 +1058,9 @@ export default function AdminDashboard() {
       try {
         await createPurchaseApi(newPurchase);
       } catch (err) {
-        console.warn('Backend create failed:', err.message);
+        // Don't list a purchase the server didn't record
+        setPurchaseFormError(`Could not record the purchase: ${err.message}`);
+        return;
       }
       const updated = [newPurchase, ...purchases];
       setPurchases(updated);
@@ -1642,6 +1661,12 @@ export default function AdminDashboard() {
         header: '',
         id: 'changeStatus',
         cell: ({ row }) => (
+          // Saga-owned states: the order service decides these, not the admin
+          ['AwaitingStock', 'Rejected'].includes(row.original.status) ? (
+            <span className="text-muted text-xs" title={row.original.statusReason || ''}>
+              {row.original.status === 'Rejected' ? 'Refunded' : 'Confirming stock…'}
+            </span>
+          ) : (
           <select
             className="status-select"
             value={row.original.status}
@@ -1655,6 +1680,7 @@ export default function AdminDashboard() {
             <option value="Delivered">Delivered</option>
             <option value="Cancelled">Cancelled</option>
           </select>
+          )
         )
       }
     ],
@@ -2008,6 +2034,13 @@ export default function AdminDashboard() {
             <BarChart3 size={18} />
             <span>Reports</span>
           </button>
+          <button
+            className={`admin-nav-item ${activeAdminTab === 'monitoring' ? 'active' : ''}`}
+            onClick={() => setActiveAdminTab('monitoring')}
+          >
+            <Activity size={18} />
+            <span>Monitoring</span>
+          </button>
 
           <span className="side-section-label">System &amp; Policy</span>
           {/* POLICY SIDEBAR ITEM */}
@@ -2239,6 +2272,21 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <ReportsView orders={orders} sales={sales} inventory={inventory} purchases={purchases} />
+            </div>
+          )}
+
+          {/* MONITORING (Grafana) */}
+          {activeAdminTab === 'monitoring' && (
+            <div className="admin-view-content">
+              <div className="admin-page-header">
+                <div className="admin-page-heading">
+                  <h2 className="admin-view-title">Monitoring</h2>
+                  <p className="admin-view-sub">
+                    Live Grafana dashboard: service traffic and errors, Kafka lag, outbox backlog, email queue, databases.
+                  </p>
+                </div>
+              </div>
+              <MonitoringView />
             </div>
           )}
 

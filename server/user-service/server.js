@@ -10,7 +10,11 @@ initCache('user');
 import userRoutes from './routes/user.routes.js';
 import { success } from '../utils/response.js';
 
+import { initMetrics } from '../utils/metrics.js';
 const app = express();
+
+// Prometheus: HTTP rate/errors/duration + Node runtime metrics at GET /metrics
+initMetrics(app, 'user-service');
 
 // Enable CORS using the official 'cors' package library
 app.use(cors(corsOptions));

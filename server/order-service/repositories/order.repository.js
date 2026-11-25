@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 import OrderModel from '../models/order.model.js';
+import { ensureOutboxTable } from '../../utils/events/index.js';
 
 /**
  * Order Repository (PostgreSQL Implementation)
@@ -26,8 +27,17 @@ class OrderRepository {
           created_at TIMESTAMPTZ DEFAULT NOW(),
           updated_at TIMESTAMPTZ DEFAULT NOW()
         );
+        -- Order saga: receipt contact and the reason a stock reservation was rejected
+        ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_email VARCHAR(255);
+        ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_name VARCHAR(128);
+        ALTER TABLE orders ADD COLUMN IF NOT EXISTS status_reason TEXT;
+        -- Idempotent checkout: one order per (customer, checkout attempt)
+        ALTER TABLE orders ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(64);
+        CREATE UNIQUE INDEX IF NOT EXISTS orders_customer_idempotency_key_uidx
+          ON orders (customer_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
       `);
-
+      // Events written in the same transaction as the order (transactional outbox)
+      await ensureOutboxTable(pool);
     } catch (err) {
       console.error('[Order Repository] PostgreSQL init error:', err.message);
     }
@@ -45,17 +55,22 @@ class OrderRepository {
       status: r.status,
       paymentId: r.payment_id,
       paymentStatus: r.payment_status,
+      customerEmail: r.customer_email,
+      customerName: r.customer_name,
+      statusReason: r.status_reason,
+      idempotencyKey: r.idempotency_key,
       createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
       updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
     });
   }
 
-  async create(orderData) {
+  /** `db` is the pool, or a transaction client from withTransaction(). */
+  async create(orderData, db = pool) {
     await this.ready;
     const model = new OrderModel(orderData);
     const sql = `
-      INSERT INTO orders (id, customer_id, customer_phone, items, total_amount, shipping_address, status, payment_id, payment_status, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO orders (id, customer_id, customer_phone, items, total_amount, shipping_address, status, payment_id, payment_status, created_at, updated_at, customer_email, customer_name, idempotency_key)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *;
     `;
     const values = [
@@ -69,9 +84,40 @@ class OrderRepository {
       model.paymentId,
       model.paymentStatus,
       model.createdAt,
-      model.updatedAt
+      model.updatedAt,
+      model.customerEmail,
+      model.customerName,
+      model.idempotencyKey
     ];
-    const res = await pool.query(sql, values);
+    const res = await db.query(sql, values);
+    return this.mapRow(res.rows[0]);
+  }
+
+  async findByIdempotencyKey(customerId, idempotencyKey) {
+    await this.ready;
+    const res = await pool.query(
+      'SELECT * FROM orders WHERE customer_id = $1 AND idempotency_key = $2',
+      [customerId, idempotencyKey]
+    );
+    return this.mapRow(res.rows[0]);
+  }
+
+  /** Lock the order row inside a transaction (saga steps must not interleave). */
+  async findByIdForUpdate(id, db) {
+    await this.ready;
+    const res = await db.query('SELECT * FROM orders WHERE id = $1 FOR UPDATE', [id]);
+    return this.mapRow(res.rows[0]);
+  }
+
+  /** Saga transition: set status, payment status and (optionally) the reason in one statement. */
+  async transition(id, { status, paymentStatus = null, statusReason = null }, db = pool) {
+    await this.ready;
+    const res = await db.query(
+      `UPDATE orders
+       SET status = $1, payment_status = COALESCE($2, payment_status), status_reason = $3, updated_at = NOW()
+       WHERE id = $4 RETURNING *`,
+      [status, paymentStatus, statusReason, id]
+    );
     return this.mapRow(res.rows[0]);
   }
 
@@ -93,7 +139,7 @@ class OrderRepository {
     return res.rows.map(r => this.mapRow(r));
   }
 
-  async updateStatus(id, status, paymentId = null, paymentStatus = null) {
+  async updateStatus(id, status, paymentId = null, paymentStatus = null, db = pool) {
     await this.ready;
     let sql = 'UPDATE orders SET status = $1, updated_at = NOW()';
     const params = [status];
@@ -110,12 +156,12 @@ class OrderRepository {
     params.push(id);
     sql += ` WHERE id = $${params.length} RETURNING *;`;
 
-    const res = await pool.query(sql, params);
+    const res = await db.query(sql, params);
     return this.mapRow(res.rows[0]);
   }
 
-  async cancelOrder(id) {
-    return this.updateStatus(id, 'Cancelled');
+  async cancelOrder(id, db = pool) {
+    return this.updateStatus(id, 'Cancelled', null, null, db);
   }
 }
 

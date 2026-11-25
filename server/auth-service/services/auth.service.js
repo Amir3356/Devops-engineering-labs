@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import authRepository from '../repositories/auth.repository.js';
 import AuthAccountModel from '../models/auth.model.js';
+import { getActiveTokenVersion, revokeAllUserSessions } from '../../utils/tokenVersion.js';
 import config from '../config/index.js';
 
 class AuthService {
@@ -26,7 +27,8 @@ class AuthService {
       role: 'customer' // Public registration strictly creates Customers
     });
 
-    const token = this.generateToken(account);
+    const tokenVersion = await getActiveTokenVersion(account.id);
+    const token = this.generateToken(account, tokenVersion);
     const sanitizedUser = account.toSafeJSON();
 
     return { user: sanitizedUser, token };
@@ -55,24 +57,33 @@ class AuthService {
       throw err;
     }
 
-    const token = this.generateToken(account);
+    const tokenVersion = await getActiveTokenVersion(account.id);
+    const token = this.generateToken(account, tokenVersion);
     const sanitizedUser = account.toSafeJSON();
 
     return { user: sanitizedUser, token };
   }
 
-  generateToken(account) {
+  generateToken(account, tokenVersion = 1) {
     return jwt.sign(
       {
         id: account.id,
         email: account.email,
         phone: account.phone,
         role: account.role,
-        name: account.name
+        name: account.name,
+        tokenVersion: parseInt(tokenVersion, 10) || 1
       },
       config.JWT_SECRET,
       { expiresIn: config.JWT_EXPIRES_IN || '24h' }
     );
+  }
+
+  async revokeUserSessions(userId) {
+    if (!userId) return null;
+    const newVersion = await revokeAllUserSessions(userId);
+    await authRepository.incrementTokenVersion(userId);
+    return newVersion;
   }
 
   verify(token) {

@@ -36,7 +36,8 @@ class InventoryController {
   async updateStock(req, res) {
     try {
       const { productId } = req.params;
-      const { stockQuantity, productName, category, batchId, expiresAt, totalSellingPrice } = req.body;
+      // expectedVersion: the row version the admin loaded (optimistic concurrency control)
+      const { stockQuantity, productName, category, batchId, expiresAt, totalSellingPrice, expectedVersion } = req.body;
 
       if (stockQuantity === undefined) {
         return error(res, 'stockQuantity is required', 400);
@@ -47,11 +48,13 @@ class InventoryController {
         category,
         batchId,
         expiresAt,
-        ...(totalSellingPrice !== undefined && { totalSellingPrice })
+        ...(totalSellingPrice !== undefined && { totalSellingPrice }),
+        ...(expectedVersion !== undefined && expectedVersion !== null && { expectedVersion })
       });
       return success(res, updated.toJSON(), 'Inventory stock updated successfully');
     } catch (err) {
-      return error(res, err.message, 400);
+      // 409 = someone changed this stock row since the admin loaded it
+      return error(res, err.message, err.status || 400);
     }
   }
 
@@ -65,7 +68,9 @@ class InventoryController {
       const results = await inventoryService.deductItems(items);
       return success(res, results.map(r => r.toJSON()), 'Stock successfully deducted for order');
     } catch (err) {
-      return error(res, err.message, 400);
+      // Not enough stock / bad input → 400; a database failure (SQLSTATE code) → 503 so callers retry
+      const isDbError = /^[0-9A-Z]{5}$/.test(String(err.code || ''));
+      return error(res, err.message, isDbError ? 503 : 400);
     }
   }
 

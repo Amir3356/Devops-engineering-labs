@@ -1,3 +1,4 @@
+import axios from 'axios';
 import config from '../config/index.js';
 
 const LOOKUP_TIMEOUT_MS = 3000;
@@ -11,11 +12,10 @@ const normalise = (name) => String(name || '').trim().toLowerCase();
 export async function countPurchasesForProduct(productName) {
   let body;
   try {
-    const res = await fetch(`${config.PURCHASE_SERVICE_URL}/api/purchases`, {
-      signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS)
+    const res = await axios.get(`${config.PURCHASE_SERVICE_URL}/api/purchases`, {
+      timeout: LOOKUP_TIMEOUT_MS
     });
-    if (!res.ok) throw new Error(`purchase-service responded ${res.status}`);
-    body = await res.json();
+    body = res.data;
   } catch (cause) {
     const err = new Error('Cannot verify purchase history right now (purchase service unavailable). Try again shortly.');
     err.status = 503;

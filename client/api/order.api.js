@@ -17,6 +17,12 @@ export const getOrdersApi = () => {
   });
 };
 
+export const getOrderApi = (orderId) => {
+  return request(`/api/orders/${orderId}`, {
+    method: 'GET'
+  });
+};
+
 export const getAllOrdersAdminApi = () => {
   return request('/api/orders/all', {
     method: 'GET'

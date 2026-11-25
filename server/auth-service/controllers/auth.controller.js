@@ -1,3 +1,4 @@
+import jwt from 'jsonwebtoken';
 import authService from '../services/auth.service.js';
 import config from '../config/index.js';
 import { parseDurationToMs } from '../../utils/duration.js';
@@ -34,13 +35,26 @@ class AuthController {
   }
 
   async logout(req, res) {
+    try {
+      const rawToken = req.cookies?.[COOKIE_NAME] || (req.headers['authorization'] && req.headers['authorization'].split(' ')[1]);
+      if (rawToken) {
+        const decoded = jwt.decode(rawToken);
+        const userId = decoded?.id || decoded?.userId;
+        if (userId) {
+          await authService.revokeUserSessions(userId);
+        }
+      }
+    } catch (err) {
+      console.warn('[AuthController] Session revocation notice on logout:', err.message);
+    }
+
     res.clearCookie(COOKIE_NAME, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production',
+      sameSite: process.env.COOKIE_SAME_SITE || 'lax',
       path: '/'
     });
-    return success(res, null, 'Logged out successfully', 200);
+    return success(res, null, 'Logged out successfully from all devices', 200);
   }
 
   async verify(req, res) {

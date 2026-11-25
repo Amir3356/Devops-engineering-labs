@@ -1,4 +1,9 @@
-import { placeOrderApi, getOrdersApi, getAllOrdersAdminApi, updateOrderStatusApi, cancelOrderApi } from '../api/order.api';
+import { placeOrderApi, getOrderApi, getOrdersApi, getAllOrdersAdminApi, updateOrderStatusApi, cancelOrderApi } from '../api/order.api';
+import { subscribeRealtime } from './realtime.service';
+
+export const AWAITING_STOCK = 'AwaitingStock';
+const CONFIRM_TIMEOUT_MS = 15000;
+const POLL_MS = 1500;
 
 // Older versions cached orders in the browser; those copies were never on the server.
 const LEGACY_ORDERS_KEY = 'ecommerce_orders';
@@ -32,9 +37,53 @@ class OrderService {
   }
 
   /**
-   * Save a paid order. order-service takes the units out of inventory first and
-   * rejects the order (nothing saved, nothing charged) when stock is short.
-   * @returns the order as stored by the server
+   * Wait for the order saga to settle: inventory reserves the stock (-> Paid) or rejects it
+   * (-> Rejected, payment refunded). Wakes up on the gateway's WebSocket hint for this order
+   * and polls as a fallback. Resolves with the latest order, still AwaitingStock on timeout.
+   */
+  waitForConfirmation(order, timeoutMs = CONFIRM_TIMEOUT_MS) {
+    const orderId = order.id || order.orderId;
+    return new Promise((resolve) => {
+      let latest = order;
+      let done = false;
+      let checking = false;
+      let poll = null;
+      let timer = null;
+      let unsubscribe = () => {};
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearInterval(poll);
+        clearTimeout(timer);
+        unsubscribe();
+        resolve(latest);
+      };
+      const check = async () => {
+        if (done || checking) return;
+        checking = true;
+        try {
+          const res = await getOrderApi(orderId);
+          if (res?.success && res.data) latest = res.data;
+          if (latest.status !== AWAITING_STOCK) finish();
+        } catch {
+          // transient network error: the next poll or event retries
+        } finally {
+          checking = false;
+        }
+      };
+      unsubscribe = subscribeRealtime((event) => {
+        if (event.type === 'connection.open' || (event.type === 'orders.updated' && event.orderId === orderId)) check();
+      });
+      poll = setInterval(check, POLL_MS);
+      timer = setTimeout(finish, timeoutMs);
+      check();
+    });
+  }
+
+  /**
+   * Place a paid order. order-service accepts it as AwaitingStock and inventory confirms it
+   * asynchronously (order saga). Throws when the order is rejected for stock.
+   * @returns the settled order; `status` is still AwaitingStock if confirmation is slow
    */
   async recordCompletedOrder(order, paymentId) {
     const res = await placeOrderApi({
@@ -46,7 +95,17 @@ class OrderService {
     if (!res?.success) {
       throw new Error(res?.message || 'The order could not be saved');
     }
-    return res.data;
+    if (res.data?.status !== AWAITING_STOCK) return res.data;
+
+    const settled = await this.waitForConfirmation(res.data);
+    if (settled.status === 'Rejected') {
+      // Typically another customer bought the last units a moment earlier (inventory row lock)
+      const err = new Error(`${settled.statusReason || 'Not enough stock'}. Your payment was refunded.`);
+      err.code = 'SOLD_OUT';
+      throw err;
+    }
+    // Keep the receipt info from the placement response (the GET doesn't include it)
+    return { ...settled, notification: res.data.notification };
   }
 
   async cancelOrder(orderId) {

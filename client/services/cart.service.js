@@ -35,15 +35,22 @@ class CartService {
     };
   }
 
+  /** Units visible in stock for this item, or Infinity when unknown. */
+  stockLimit(itemOrProduct) {
+    const n = Number(itemOrProduct?.stock);
+    return Number.isFinite(n) && n >= 0 ? n : Infinity;
+  }
+
   addItem(currentItems, product, quantity = 1) {
     const existingIndex = currentItems.findIndex(i => i.id === product.id);
+    const limit = this.stockLimit(product);
     let updated;
 
     if (existingIndex > -1) {
       updated = currentItems.map((item, idx) => {
         if (idx === existingIndex) {
-          const newQty = item.quantity + quantity;
-          return { ...item, quantity: newQty };
+          const newQty = Math.min(item.quantity + quantity, limit);
+          return { ...item, quantity: newQty, stock: product.stock ?? item.stock };
         }
         return item;
       });
@@ -56,7 +63,8 @@ class CartService {
           price: product.price,
           category: product.category,
           image: product.image,
-          quantity
+          stock: product.stock,
+          quantity: Math.min(quantity, limit)
         }
       ];
     }
@@ -71,7 +79,7 @@ class CartService {
     }
 
     const updated = currentItems.map(item =>
-      item.id === productId ? { ...item, quantity: newQuantity } : item
+      item.id === productId ? { ...item, quantity: Math.min(newQuantity, this.stockLimit(item)) } : item
     );
 
     this.persistCart(updated);

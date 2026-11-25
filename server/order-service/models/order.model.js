@@ -14,6 +14,10 @@ class OrderModel {
     status,
     paymentId,
     paymentStatus,
+    customerEmail,
+    customerName,
+    statusReason,
+    idempotencyKey,
     createdAt,
     updatedAt
   }) {
@@ -23,9 +27,17 @@ class OrderModel {
     this.items = Array.isArray(items) ? items : [];
     this.totalAmount = parseFloat(totalAmount) || 0;
     this.shippingAddress = shippingAddress || {};
-    this.status = status || 'Pending'; // 'Pending', 'Paid', 'Processing', 'Shipped', 'Delivered', 'Cancelled'
+    // 'Pending', 'AwaitingStock', 'Paid', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Rejected'
+    this.status = status || 'Pending';
     this.paymentId = paymentId || null;
     this.paymentStatus = paymentStatus || 'Pending';
+    // Receipt contact, kept so the OrderConfirmed event can carry it once stock is reserved
+    this.customerEmail = customerEmail || null;
+    this.customerName = customerName || '';
+    // Why the order ended up Rejected (e.g. not enough stock)
+    this.statusReason = statusReason || null;
+    // Client-generated checkout id; unique per customer (duplicate submits return this order)
+    this.idempotencyKey = idempotencyKey || null;
     this.createdAt = createdAt || new Date().toISOString();
     this.updatedAt = updatedAt || new Date().toISOString();
   }
@@ -52,6 +64,7 @@ class OrderModel {
       status: this.status,
       paymentId: this.paymentId,
       paymentStatus: this.paymentStatus,
+      statusReason: this.statusReason,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt
     };

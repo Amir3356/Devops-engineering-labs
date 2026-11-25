@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import userRepository from '../repositories/user.repository.js';
 import UserModel from '../models/user.model.js';
 import config from '../config/index.js';
+import { getActiveTokenVersion } from '../../utils/tokenVersion.js';
 import { cached, invalidate } from '../../utils/cache.js';
 
 // Cache keys (namespaced 'user:' by initCache).
@@ -116,13 +117,15 @@ class UserService {
     });
   }
 
-  generateToken(user) {
+  async generateToken(user) {
+    const tokenVersion = await getActiveTokenVersion(user.id);
     return jwt.sign(
       {
         id: user.id,
         phone: user.phone,
         role: user.role,
-        name: user.name
+        name: user.name,
+        tokenVersion: parseInt(tokenVersion, 10) || 1
       },
       config.JWT_SECRET,
       { expiresIn: config.JWT_EXPIRES_IN || '24h' }

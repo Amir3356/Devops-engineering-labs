@@ -1,13 +1,16 @@
+import axios from 'axios';
 import config from '../config/index.js';
 
 async function post(baseUrl, path, body, headers = {}, timeoutMs = 5000) {
   let res;
   try {
-    res = await fetch(`${baseUrl}${path}`, {
+    res = await axios({
+      url: `${baseUrl}${path}`,
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs)
+      data: body,
+      timeout: timeoutMs,
+      validateStatus: () => true
     });
   } catch (cause) {
     const err = new Error(`Service at ${baseUrl} is unavailable`);
@@ -15,8 +18,8 @@ async function post(baseUrl, path, body, headers = {}, timeoutMs = 5000) {
     err.cause = cause;
     throw err;
   }
-  const payload = await res.json().catch(() => ({}));
-  if (!res.ok || payload.success === false) {
+  const payload = res.data || {};
+  if (res.status < 200 || res.status >= 300 || payload.success === false) {
     const err = new Error(payload.message || `Service responded ${res.status}`);
     err.status = res.status;
     throw err;
@@ -38,9 +41,4 @@ export async function deductStock(productId, quantity) {
 /** Compensation when the sale could not be saved. */
 export function restoreStock(productId, quantity) {
   return post(config.INVENTORY_SERVICE_URL, '/api/inventory/replenish', { productId, amount: quantity }, { 'x-user-role': 'admin' });
-}
-
-/** Ask notification-service to email the receipt (SMTP). */
-export function sendReceiptEmail(details) {
-  return post(config.NOTIFICATION_SERVICE_URL, '/internal/email/sale-receipt', details, {}, 90000);
 }

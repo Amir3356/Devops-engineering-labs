@@ -8,10 +8,16 @@ import { fileURLToPath } from 'url';
 import config from './config/index.js';
 import routes from './routes/index.js';
 import { attachRealtime } from './realtime.js';
+import { startRealtimeConsumer, stopRealtimeConsumer } from './events.js';
+import { startWithRetry, onShutdown } from '../utils/events/index.js';
 import { success } from '../utils/response.js';
 import { requestLogger, rateLimiter, rateLimitStatus, notFoundHandler, errorHandler } from './middleware/index.js';
 
+import { initMetrics } from '../utils/metrics.js';
 const app = express();
+
+// Prometheus: HTTP rate/errors/duration + Node runtime metrics at GET /metrics
+initMetrics(app, 'api-gateway');
 
 // 1. Enable CORS using official 'cors' library
 app.use(cors(corsOptions));
@@ -73,4 +79,8 @@ if (isMainModule) {
   });
   // Real-time channel (ws://<gateway>/ws) shares the HTTP port
   attachRealtime(server);
+  // Async order/stock changes (order saga) reach clients through Kafka events
+  startWithRetry('Gateway Realtime', startRealtimeConsumer).then((consumer) =>
+    onShutdown(() => stopRealtimeConsumer(consumer))
+  );
 }

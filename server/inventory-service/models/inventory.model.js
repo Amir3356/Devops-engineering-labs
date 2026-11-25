@@ -2,7 +2,7 @@
  * Inventory Model / Domain Entity
  */
 class InventoryModel {
-  constructor({ productId, productName, category, batchId, expiresAt, unitSellingPrice, totalSellingPrice, stockQuantity, lowStockThreshold, updatedAt }) {
+  constructor({ productId, productName, category, batchId, expiresAt, unitSellingPrice, totalSellingPrice, stockQuantity, lowStockThreshold, version, updatedAt }) {
     this.productId = productId;
     this.productName = productName || 'Product';
     this.category = category || null;
@@ -13,6 +13,8 @@ class InventoryModel {
     this.totalSellingPrice = totalSellingPrice == null ? null : Number(totalSellingPrice);
     this.stockQuantity = parseInt(stockQuantity, 10) || 0;
     this.lowStockThreshold = parseInt(lowStockThreshold, 10) || 5;
+    // Row version for optimistic concurrency control (sent back as expectedVersion)
+    this.version = Number(version) || 0;
     this.updatedAt = updatedAt || new Date().toISOString();
   }
 
@@ -32,6 +34,7 @@ class InventoryModel {
       stockQuantity: this.stockQuantity,
       lowStockThreshold: this.lowStockThreshold,
       isLowStock: this.isLowStock(),
+      version: this.version,
       updatedAt: this.updatedAt
     };
   }

@@ -1,25 +1,33 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
-import orderService from '../../services/order.service';
+import orderService, { AWAITING_STOCK } from '../../services/order.service';
 import { X, Trash2, Plus, Minus, ArrowRight, ShoppingBag, Loader2 } from 'lucide-react';
 
 export default function CartDrawer({ isOpen, onClose }) {
   const { cartItems, updateQuantity, removeFromCart, cartTotal, subtotal, shipping, clearCart } = useCart();
   const { user } = useAuth();
   const [isPaying, setIsPaying] = useState(false);
+  // Idempotency key for this checkout attempt: a retry after a network error reuses it, so the
+  // server returns the order it may already have created instead of charging twice
+  const checkoutKeyRef = useRef(null);
+  useEffect(() => {
+    checkoutKeyRef.current = null; // the cart changed, so the next pay is a new checkout
+  }, [cartItems]);
 
   if (!isOpen) return null;
 
   // One tap: the order is paid and saved straight away (no checkout form).
-  // order-service takes the units out of stock, or rejects the order if stock is short.
+  // Inventory then reserves the units asynchronously (order saga) or rejects the order.
   const handlePay = async () => {
     if (isPaying || cartItems.length === 0) return;
     setIsPaying(true);
     const total = Math.round(cartTotal * 100) / 100;
+    if (!checkoutKeyRef.current) checkoutKeyRef.current = crypto.randomUUID();
     try {
       const saved = await orderService.recordCompletedOrder({
+        idempotencyKey: checkoutKeyRef.current,
         customerId: user?.id || null,
         customerName: user?.name || undefined,
         customerEmail: user?.email || undefined,
@@ -34,15 +42,30 @@ export default function CartDrawer({ isOpen, onClose }) {
         // No address form any more: deliver to the account holder
         shippingAddress: { name: user?.name || '', email: user?.email || '' }
       });
+      checkoutKeyRef.current = null;
       clearCart();
       onClose();
+      const shortId = String(saved?.id || '').slice(-8);
+      if (saved?.status === AWAITING_STOCK) {
+        // Accepted, but inventory hasn't answered yet (e.g. it is restarting); it will
+        toast.info('Payment received', {
+          description: `Order #${shortId} is being confirmed. Watch its status in My Orders.`
+        });
+        return;
+      }
       const receipt = saved?.notification?.status === 'queued'
         ? ` A receipt is on its way to ${saved.notification.to}.`
         : '';
       toast.success('Payment successful', {
-        description: `Order #${String(saved?.id || '').slice(-8)} is paid — $${total.toFixed(2)}.${receipt} Track it in My Orders.`
+        description: `Order #${shortId} is paid — $${total.toFixed(2)}.${receipt} Track it in My Orders.`
       });
     } catch (err) {
+      if (err.code === 'SOLD_OUT') {
+        // Definitive answer (another customer got the last units): next attempt is a new checkout
+        checkoutKeyRef.current = null;
+        toast.error('Sold out during checkout', { description: err.message });
+        return;
+      }
       toast.error('Payment failed', { description: err.message || 'The order could not be placed' });
     } finally {
       setIsPaying(false);
@@ -88,7 +111,11 @@ export default function CartDrawer({ isOpen, onClose }) {
                         <Minus size={14} />
                       </button>
                       <span>{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, item.quantity + 1)}>
+                      <button
+                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                        disabled={Number.isFinite(Number(item.stock)) && item.quantity >= Number(item.stock)}
+                        title={Number.isFinite(Number(item.stock)) && item.quantity >= Number(item.stock) ? `Only ${item.stock} in stock` : undefined}
+                      >
                         <Plus size={14} />
                       </button>
                     </div>

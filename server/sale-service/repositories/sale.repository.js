@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 import SaleModel from '../models/sale.model.js';
+import { ensureOutboxTable } from '../../utils/events/index.js';
 
 class SaleRepository {
   constructor() {
@@ -27,6 +28,8 @@ class SaleRepository {
           created_at TIMESTAMPTZ DEFAULT NOW()
         );
       `);
+      // Events written in the same transaction as the sale (transactional outbox)
+      await ensureOutboxTable(pool);
     } catch (err) {
       console.error('[Sale Repository] PostgreSQL schema init error:', err.message);
     }
@@ -65,11 +68,12 @@ class SaleRepository {
     return this.mapRow(res.rows[0]);
   }
 
-  async create(data) {
+  /** `db` is the pool, or a transaction client from withTransaction(). */
+  async create(data, db = pool) {
     await this.ready;
     const id = data.id || `sale-${Date.now()}`;
     const saleId = data.saleId || `ord-${Date.now().toString().slice(-6)}`;
-    const res = await pool.query(
+    const res = await db.query(
       `INSERT INTO sales (id, sale_id, batch_id, product_id, product_name, category, quantity, unit_price, total_amount, customer_name, customer_email, customer_phone, payment_status, fulfillment_status, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING *`,

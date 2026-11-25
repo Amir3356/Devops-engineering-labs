@@ -6,8 +6,14 @@ import { corsOptions } from '../utils/cors.js';
 import config from './config/index.js';
 import saleRoutes from './routes/sale.routes.js';
 import { success } from '../utils/response.js';
+import pool from './config/db.js';
+import { startOutboxRelay, onShutdown } from '../utils/events/index.js';
 
+import { initMetrics, registerGaugeCollector } from '../utils/metrics.js';
 const app = express();
+
+// Prometheus: HTTP rate/errors/duration + Node runtime metrics at GET /metrics
+initMetrics(app, 'sale-service');
 
 app.use(cors(corsOptions));
 app.use(express.json());
@@ -50,6 +56,21 @@ if (isMainModule) {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[SALE SERVICE] Server running on port ${PORT}`);
   });
+  const salesSummary = async () =>
+    (await pool.query('SELECT count(*)::int AS n, COALESCE(sum(total_amount), 0)::float AS revenue FROM sales')).rows[0];
+  registerGaugeCollector({
+    name: 'sales_recorded',
+    help: 'Sales recorded (all time)',
+    read: async () => [{ value: (await salesSummary()).n }]
+  });
+  registerGaugeCollector({
+    name: 'sales_revenue',
+    help: 'Revenue from recorded sales (all time)',
+    read: async () => [{ value: (await salesSummary()).revenue }]
+  });
+  // Publish committed sale events to Kafka (sale.events)
+  const relay = startOutboxRelay({ pool, serviceName: 'sale-service' });
+  onShutdown(() => relay.stop());
 }
 
 export default app;
