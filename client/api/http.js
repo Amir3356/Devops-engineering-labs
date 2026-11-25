@@ -8,14 +8,16 @@ const GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:50
 
 const apiClient = axios.create({
   baseURL: GATEWAY_URL,
+  withCredentials: true, // Send and receive HttpOnly cookies
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
-// Request interceptor to attach JWT Authorization token
+// Request interceptor to attach credentials and optional bearer token
 apiClient.interceptors.request.use(
   (config) => {
+    config.withCredentials = true;
     const token = localStorage.getItem('ecommerce_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

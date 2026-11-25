@@ -11,6 +11,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 export default {
   PORT: process.env.PORT || process.env.GATEWAY_PORT,
   JWT_SECRET: process.env.JWT_SECRET,
+  REDIS_URL: process.env.REDIS_URL || 'redis://localhost:6379',
   SERVICES: {
     AUTH: process.env.AUTH_SERVICE_URL,
     USER: process.env.USER_SERVICE_URL,

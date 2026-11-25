@@ -17,7 +17,6 @@ import {
   Package,
   Check,
   Loader2,
-  ChevronDown,
   Search,
   Filter
 } from 'lucide-react';
@@ -173,10 +172,9 @@ export default function CustomerDashboard() {
       />
 
       <div className="admin-workspace">
-        {/* Topbar matching Admin Portal */}
-        <header className="admin-topbar">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {user?.role === 'admin' && (
+        {user?.role === 'admin' && (
+          <header className="admin-topbar">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <button
                 type="button"
                 onClick={() => navigate('/admin/dashboard')}
@@ -197,17 +195,9 @@ export default function CustomerDashboard() {
               >
                 ← Return to Admin Portal
               </button>
-            )}
-          </div>
-          <div className="topbar-user-chip">
-            <span className="topbar-avatar">{(user?.name || 'C').charAt(0).toUpperCase()}</span>
-            <span className="topbar-user-text">
-              <span className="topbar-user-name">{user?.name || 'Customer'}</span>
-              <span className="topbar-user-role">{user?.role || 'customer'}</span>
-            </span>
-            <ChevronDown size={16} />
-          </div>
-        </header>
+            </div>
+          </header>
+        )}
 
         {/* Main Workspace Panel */}
         <main className="admin-main-panel">

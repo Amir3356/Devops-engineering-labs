@@ -3,7 +3,6 @@ import PolicyModel, { POLICY_DEFINITIONS, getPolicyDefinition } from '../models/
 import { cached, invalidate } from '../../utils/cache.js';
 
 const KEY_POLICY = (key) => `policies:${key}`; // namespaced 'policy:'
-const POLICY_TTL = 300; // policies change rarely; writes clear the key anyway
 
 /**
  * Policy business logic.
@@ -17,7 +16,7 @@ class PolicyService {
 
   async getPolicy(key) {
     getPolicyDefinition(key); // 404 for unknown keys
-    const json = await cached(KEY_POLICY(key), POLICY_TTL, async () =>
+    const json = await cached(KEY_POLICY(key), async () =>
       ((await policyRepository.findByKey(key)) || PolicyModel.defaultsFor(key)).toJSON()
     );
     return new PolicyModel(json);

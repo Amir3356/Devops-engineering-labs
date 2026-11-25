@@ -41,7 +41,7 @@ class AuthService {
     const res = await loginApi(payload);
     if (res.success && res.data) {
       const { user, token } = res.data;
-      this.setToken(token);
+      // Token is securely handled via HttpOnly cookie; user info kept for UI context
       this.setUser(user);
       return { success: true, user, token };
     }
@@ -56,7 +56,7 @@ class AuthService {
     const res = await registerApi({ name, email, password, confirmPassword });
     if (res.success && res.data) {
       const { user, token } = res.data;
-      this.setToken(token);
+      // Token is securely handled via HttpOnly cookie
       this.setUser(user);
       return { success: true, user, token };
     }
@@ -74,17 +74,18 @@ class AuthService {
   }
 
   async syncProfile() {
-    const token = this.getToken();
-    if (!token) return null;
-
     try {
       const res = await getProfileApi();
       if (res.success && res.data) {
         this.setUser(res.data);
         return res.data;
       }
-    } catch {
-      // Return cached user if network fails
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        this.removeUser();
+        this.removeToken();
+        return null;
+      }
     }
     return this.getUser();
   }

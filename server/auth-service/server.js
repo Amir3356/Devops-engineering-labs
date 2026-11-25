@@ -2,6 +2,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { corsOptions } from '../utils/cors.js';
 import config from './config/index.js';
 import authRoutes from './routes/auth.routes.js';
@@ -12,6 +13,7 @@ const app = express();
 // Enable CORS using the official 'cors' package library
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(cookieParser());
 
 // Request logger
 app.use((req, res, next) => {

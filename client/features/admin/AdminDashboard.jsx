@@ -48,7 +48,6 @@ import {
   Filter,
   LogOut,
   User,
-  ChevronDown,
   CheckCircle2,
   XCircle,
   Warehouse,
@@ -2055,16 +2054,6 @@ export default function AdminDashboard() {
       </aside>
 
       <div className="admin-workspace">
-        <header className="admin-topbar">
-          <div className="topbar-user-chip">
-            <span className="topbar-avatar">{(user?.name || 'A').charAt(0).toUpperCase()}</span>
-            <span className="topbar-user-text">
-              <span className="topbar-user-name">{user?.name || 'Administrator'}</span>
-            </span>
-            <ChevronDown size={16} />
-          </div>
-        </header>
-
         {/* Main Content Area */}
         <main className="admin-main-panel">
           {/* TAB 1: PRODUCT & CATEGORY MANAGEMENT */}

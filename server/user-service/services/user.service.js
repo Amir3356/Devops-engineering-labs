@@ -3,6 +3,12 @@ import jwt from 'jsonwebtoken';
 import userRepository from '../repositories/user.repository.js';
 import UserModel from '../models/user.model.js';
 import config from '../config/index.js';
+import { cached, invalidate } from '../../utils/cache.js';
+
+// Cache keys (namespaced 'user:' by initCache).
+const KEY_PROFILE = (userId) => `users:profile:${userId}`;
+const KEY_CUSTOMERS = 'users:customers:all';
+const clearUsers = () => invalidate('users');
 
 class UserService {
   async register(registrationData) {
@@ -27,6 +33,8 @@ class UserService {
 
     const token = this.generateToken(createdUser);
     const sanitizedUser = createdUser.toSafeJSON();
+
+    await clearUsers(); // invalidate customer listings
 
     return { user: sanitizedUser, token };
   }
@@ -61,13 +69,15 @@ class UserService {
   }
 
   async getProfile(userId) {
-    const user = await userRepository.findById(userId);
-    if (!user) {
-      const err = new Error('User not found');
-      err.status = 404;
-      throw err;
-    }
-    return user.toSafeJSON();
+    return cached(KEY_PROFILE(userId), async () => {
+      const user = await userRepository.findById(userId);
+      if (!user) {
+        const err = new Error('User not found');
+        err.status = 404;
+        throw err;
+      }
+      return user.toSafeJSON();
+    });
   }
 
   async updateProfile(userId, updateData) {
@@ -81,24 +91,29 @@ class UserService {
       throw err;
     }
 
+    await clearUsers(); // invalidate profile and listings immediately on commit
     return updatedUser.toSafeJSON();
   }
 
   async getAllCustomers() {
-    const allUsers = await userRepository.findAll();
-    return allUsers
-      .filter(u => u.role === 'customer')
-      .map(u => u.toSafeJSON());
+    return cached(KEY_CUSTOMERS, async () => {
+      const allUsers = await userRepository.findAll();
+      return allUsers
+        .filter((u) => u.role === 'customer')
+        .map((u) => u.toSafeJSON());
+    });
   }
 
   async getUserById(userId) {
-    const user = await userRepository.findById(userId);
-    if (!user) {
-      const err = new Error('User not found');
-      err.status = 404;
-      throw err;
-    }
-    return user.toSafeJSON();
+    return cached(KEY_PROFILE(userId), async () => {
+      const user = await userRepository.findById(userId);
+      if (!user) {
+        const err = new Error('User not found');
+        err.status = 404;
+        throw err;
+      }
+      return user.toSafeJSON();
+    });
   }
 
   generateToken(user) {

@@ -5,7 +5,7 @@ import cors from 'cors';
  * Utilizing the official 'cors' npm package library.
  */
 export const corsOptions = {
-  origin: '*',
+  origin: true, // Reflect request origin to allow credentials (cookies) securely
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
     'Content-Type',

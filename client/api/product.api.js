@@ -68,7 +68,8 @@ export const uploadProductImageApi = async (file) => {
 
   const GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:5000';
   const response = await axios.post(`${GATEWAY_URL}/api/products/upload`, formData, {
-    headers
+    headers,
+    withCredentials: true
   });
 
   const payload = response.data?.data || response.data;

@@ -1,6 +1,6 @@
 import dotenv from 'dotenv'; dotenv.config({ path: '.env', quiet: true });
 const G = 'http://localhost:5000';
-const svc = { product: 'http://localhost:5002', inventory: 'http://localhost:5006', policy: 'http://localhost:5009' };
+const svc = { product: 'http://localhost:5002', inventory: 'http://localhost:5006', policy: 'http://localhost:5009', user: 'http://localhost:5001' };
 const health = async (s) => (await (await fetch(svc[s] + '/health')).json()).data.cache;
 const timed = async (url, opts) => { const t = performance.now(); const r = await fetch(url, opts); const b = await r.json(); return { ms: +(performance.now() - t).toFixed(1), body: b, status: r.status }; };
 const admin = await (await fetch(G + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD }) })).json();
@@ -39,6 +39,20 @@ try {
   await fetch(G + '/api/policies/inventory-alerts', { method: 'PUT', headers: AH, body: JSON.stringify({ lowStockThreshold: pol0 }) });
   const pol2 = (await (await fetch(G + '/api/policies/inventory-alerts')).json()).data.settings.lowStockThreshold;
   console.log(`2c policy    : ${pol0} -> saved 7 -> read ${pol1} -> restored -> read ${pol2}`);
+
+  // 2d. user profile (cached on read, invalidated on profile update)
+  const u0 = await health('user');
+  const up1 = await timed(G + '/api/users/profile', { headers: AH });
+  const up2 = await timed(G + '/api/users/profile', { headers: AH });
+  const u1 = await health('user');
+  console.log(`2d profile   : 1st ${up1.ms}ms, 2nd ${up2.ms}ms | misses +${u1.misses - u0.misses}, hits +${u1.hits - u0.hits}`);
+
+  const origName = up1.body.data.name;
+  await fetch(G + '/api/users/profile', { method: 'PUT', headers: AH, body: JSON.stringify({ name: origName + ' Cached' }) });
+  const upAfterUpdate = (await (await fetch(G + '/api/users/profile', { headers: AH })).json()).data.name;
+  await fetch(G + '/api/users/profile', { method: 'PUT', headers: AH, body: JSON.stringify({ name: origName }) });
+  const upRestored = (await (await fetch(G + '/api/users/profile', { headers: AH })).json()).data.name;
+  console.log(`2d update    : updated name '${upAfterUpdate}' -> restored '${upRestored}'`);
 } finally {
   if (globalThis.saleId) await fetch(G + '/api/sales/' + globalThis.saleId, { method: 'DELETE', headers: AH });
   if (prod) { await fetch(G + '/api/inventory/' + prod.id, { method: 'DELETE', headers: AH }); await fetch(G + '/api/products/' + prod.id, { method: 'DELETE', headers: AH }); }

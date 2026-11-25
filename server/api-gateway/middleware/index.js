@@ -1,7 +1,7 @@
 import { authenticateToken, optionalAuth, requireAdmin, requireCustomer } from './auth.js';
 import errorHandler from './errorHandler.js';
 import requestLogger from './requestLogger.js';
-import rateLimiter from './rateLimiter.js';
+import rateLimiter, { authRateLimiter, createRateLimiter, rateLimitStatus } from './rateLimiter.js';
 import notFoundHandler from './notFound.js';
 
 export {
@@ -12,6 +12,9 @@ export {
   errorHandler,
   requestLogger,
   rateLimiter,
+  authRateLimiter,
+  createRateLimiter,
+  rateLimitStatus,
   notFoundHandler
 };
 
@@ -23,5 +26,8 @@ export default {
   errorHandler,
   requestLogger,
   rateLimiter,
+  authRateLimiter,
+  createRateLimiter,
+  rateLimitStatus,
   notFoundHandler
 };

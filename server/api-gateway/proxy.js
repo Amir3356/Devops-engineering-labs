@@ -21,7 +21,11 @@ const proxyRequest = (targetBaseUrl) => {
           if (req.headers[name]) headers[name] = req.headers[name];
         }
       }
-      if (req.headers['authorization']) headers['authorization'] = req.headers['authorization'];
+      if (req.headers['authorization']) {
+        headers['authorization'] = req.headers['authorization'];
+      } else if (req.cookies?.token) {
+        headers['authorization'] = `Bearer ${req.cookies.token}`;
+      }
 
       const response = await axios({
         url,
@@ -30,6 +34,29 @@ const proxyRequest = (targetBaseUrl) => {
         data: ['POST', 'PUT', 'PATCH'].includes(req.method) ? req.body : undefined,
         validateStatus: () => true // Allow all status codes to pass through to the client
       });
+
+      // Forward Set-Cookie header or set HttpOnly cookie on auth endpoints
+      if (response.headers['set-cookie']) {
+        res.setHeader('set-cookie', response.headers['set-cookie']);
+      }
+
+      const isAuthRoute = req.originalUrl.startsWith('/api/auth');
+      if (isAuthRoute && response.data?.data?.token) {
+        res.cookie('token', response.data.data.token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 24 * 60 * 60 * 1000
+        });
+      } else if (isAuthRoute && req.originalUrl.includes('logout')) {
+        res.clearCookie('token', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/'
+        });
+      }
 
       announceIfCatalogChanged(req, response.status);
       return res.status(response.status).json(response.data);

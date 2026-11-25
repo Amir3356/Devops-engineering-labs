@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import axios from 'axios';
 import { corsOptions } from '../utils/cors.js';
 import path from 'path';
@@ -8,15 +9,16 @@ import config from './config/index.js';
 import routes from './routes/index.js';
 import { attachRealtime } from './realtime.js';
 import { success } from '../utils/response.js';
-import { requestLogger, rateLimiter, notFoundHandler, errorHandler } from './middleware/index.js';
+import { requestLogger, rateLimiter, rateLimitStatus, notFoundHandler, errorHandler } from './middleware/index.js';
 
 const app = express();
 
 // 1. Enable CORS using official 'cors' library
 app.use(cors(corsOptions));
 
-// 2. Parse incoming JSON payloads
+// 2. Parse incoming JSON payloads and cookies
 app.use(express.json());
+app.use(cookieParser());
 
 // 3. Request Logging & Distributed Tracing (X-Request-ID)
 app.use(requestLogger);
@@ -39,6 +41,7 @@ app.get('/health', async (req, res) => {
 
   return success(res, {
     gateway: 'HEALTHY',
+    rateLimiting: rateLimitStatus(),
     timestamp: new Date().toISOString(),
     services: serviceStatuses
   }, 'API Gateway is operational');

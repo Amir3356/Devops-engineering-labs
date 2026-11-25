@@ -1,10 +1,10 @@
 import { createClient } from 'redis';
 
 /**
- * Shared Redis cache — Cache-Aside (lazy loading) with TTL and versioned invalidation.
+ * Shared Redis cache — Cache-Aside (lazy loading) with versioned invalidation.
  *
- *   READ   const products = await cached('products:list', 60, () => repo.findAll());
- *          Redis hit → return copy. Miss → loader (PostgreSQL) → store copy with TTL → return.
+ *   READ   const products = await cached('products:list', () => repo.findAll());
+ *          Redis hit → return copy. Miss → loader (PostgreSQL) → store copy → return.
  *
  *   WRITE  await repo.create(...);            // 1. commit to PostgreSQL first
  *          await invalidate('products');      // 2. then invalidate the whole group
@@ -22,12 +22,11 @@ import { createClient } from 'redis';
  * Reliability
  *   PostgreSQL is the single source of truth; Redis only holds temporary copies.
  *   Without REDIS_URL, or while Redis is down, every call goes straight to the loader and
- *   commands fail fast (no offline queue). A failed invalidation is bounded by the TTL.
+ *   commands fail fast (no offline queue).
  *
- * Env: REDIS_URL, CACHE_TTL_SECONDS (default 60), CACHE_DEBUG=true (log HIT/MISS/INVALIDATE).
+ * Env: REDIS_URL, CACHE_DEBUG=true (log HIT/MISS/INVALIDATE).
  */
 
-const DEFAULT_TTL = parseInt(process.env.CACHE_TTL_SECONDS || '60', 10);
 const DEBUG = process.env.CACHE_DEBUG === 'true';
 
 let client = null;
@@ -61,7 +60,7 @@ export function initCache(serviceName) {
   client.on('ready', () => {
     ready = true;
     warnedDown = false;
-    console.log(`[Cache:${namespace}] Redis connected (${url.replace(/\/\/[^@]*@/, '//***@')}), TTL ${DEFAULT_TTL}s`);
+    console.log(`[Cache:${namespace}] Redis connected (${url.replace(/\/\/[^@]*@/, '//***@')})`);
   });
   client.on('end', () => {
     ready = false;
@@ -102,10 +101,13 @@ async function groupVersion(redis, group) {
 
 /**
  * Read-through cache (Cache-Aside). Returns the cached copy, or runs `loader`
- * (PostgreSQL), stores its JSON-serialisable result for `ttlSeconds`, and returns it.
- * A loader that throws (e.g. 404) caches nothing.
+ * (PostgreSQL), stores its JSON-serialisable result indefinitely (invalidated on write),
+ * and returns it. A loader that throws (e.g. 404) caches nothing.
+ *
+ * Supports both signatures: cached(key, loader) or legacy cached(key, ttlSeconds, loader).
  */
-export async function cached(key, ttlSeconds, loader) {
+export async function cached(key, loaderOrTtl, maybeLoader) {
+  const loader = typeof loaderOrTtl === 'function' ? loaderOrTtl : maybeLoader;
   const redis = live();
   const { group, rest } = splitKey(key);
   let entryKey = null;
@@ -138,7 +140,7 @@ export async function cached(key, ttlSeconds, loader) {
     try {
       const current = await redis.get(versionKey(group));
       if (current === version) {
-        await redis.set(entryKey, JSON.stringify(value), { EX: ttlSeconds || DEFAULT_TTL });
+        await redis.set(entryKey, JSON.stringify(value));
       } else {
         stats.staleWritesSkipped++;
         if (DEBUG) console.log(`[Cache:${namespace}] SKIP stale ${entryKey} (version moved to ${current})`);
@@ -186,14 +188,12 @@ export async function invalidate(...keysOrGroups) {
       if (DEBUG) console.log(`[Cache:${namespace}] INVALIDATE ${group} → version ${next}, removed ${removed} outdated key(s)`);
     } catch (err) {
       stats.errors++;
-      console.warn(`[Cache:${namespace}] invalidation of '${group}' failed (entries expire by TTL):`, err.message);
+      console.warn(`[Cache:${namespace}] invalidation of '${group}' failed:`, err.message);
     }
   }
 }
 
 /** Cache status for /health endpoints. */
 export function cacheStatus() {
-  return { enabled: Boolean(client), connected: ready, ttlSeconds: DEFAULT_TTL, ...stats };
+  return { enabled: Boolean(client), connected: ready, ...stats };
 }
-
-export const CACHE_TTL = DEFAULT_TTL;
