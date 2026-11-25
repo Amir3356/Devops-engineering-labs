@@ -125,7 +125,7 @@ class UserService {
         name: user.name
       },
       config.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: config.JWT_EXPIRES_IN || '24h' }
     );
   }
 }

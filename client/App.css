@@ -4199,33 +4199,6 @@ h1, h2, h3, h4 { color: var(--text-main); letter-spacing: -0.02em; }
   border-bottom: 1px solid var(--border-color);
 }
 
-.topbar-user-chip {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 12px 6px 6px;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  color: var(--text-muted);
-  box-shadow: var(--shadow-sm);
-}
-
-.topbar-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--forest-800);
-  color: #fff;
-  font-weight: 700;
-  font-size: 0.85rem;
-}
-
-.topbar-user-text { display: flex; flex-direction: column; line-height: 1.2; }
-.topbar-user-name { font-size: 0.85rem; font-weight: 700; color: var(--text-main); }
-.topbar-user-role { font-size: 0.72rem; color: var(--text-muted); text-transform: capitalize; }
 
 .admin-main-panel,
 .customer-main-panel {

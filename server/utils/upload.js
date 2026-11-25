@@ -8,10 +8,12 @@ const fileFilter = (_req, _file, cb) => {
   cb(null, true);
 };
 
+const maxFileSizeMb = parseInt(process.env.MAX_FILE_SIZE_MB || '25', 10);
+
 export const uploadMiddleware = multer({
   storage,
   limits: {
-    fileSize: 25 * 1024 * 1024 // 25MB limit
+    fileSize: maxFileSizeMb * 1024 * 1024 // Configurable limit in MB
   },
   fileFilter
 }).single('image');

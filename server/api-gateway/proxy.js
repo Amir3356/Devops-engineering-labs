@@ -1,4 +1,6 @@
 import axios from 'axios';
+import config from './config/index.js';
+import { parseDurationToMs } from '../utils/duration.js';
 import { error } from '../utils/response.js';
 import { announceIfCatalogChanged } from './realtime.js';
 
@@ -47,7 +49,7 @@ const proxyRequest = (targetBaseUrl) => {
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',
           path: '/',
-          maxAge: 24 * 60 * 60 * 1000
+          maxAge: parseDurationToMs(config.JWT_EXPIRES_IN || '24h')
         });
       } else if (isAuthRoute && req.originalUrl.includes('logout')) {
         res.clearCookie('token', {

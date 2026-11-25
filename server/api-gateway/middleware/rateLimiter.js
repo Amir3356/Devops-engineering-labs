@@ -164,7 +164,12 @@ export function rateLimitStatus() {
   };
 }
 
-export const rateLimiter = createRateLimiter({ prefix: 'global', windowSeconds: 60, maxRequests: 150 });
-export const authRateLimiter = createRateLimiter({ prefix: 'auth', windowSeconds: 60, maxRequests: 20 });
+const globalLimit = config.RATE_LIMIT?.GLOBAL_MAX || 150;
+const globalWindow = config.RATE_LIMIT?.GLOBAL_WINDOW || 60;
+const authLimit = config.RATE_LIMIT?.AUTH_MAX || 20;
+const authWindow = config.RATE_LIMIT?.AUTH_WINDOW || 60;
+
+export const rateLimiter = createRateLimiter({ prefix: 'global', windowSeconds: globalWindow, maxRequests: globalLimit });
+export const authRateLimiter = createRateLimiter({ prefix: 'auth', windowSeconds: authWindow, maxRequests: authLimit });
 
 export default rateLimiter;

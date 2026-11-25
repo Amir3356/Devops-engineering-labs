@@ -10,6 +10,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 export default {
   PORT: process.env.PORT || process.env.AUTH_SERVICE_PORT,
   JWT_SECRET: process.env.JWT_SECRET,
+  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h',
   DB: {
     connectionString: process.env.AUTH_DB_URL
   }

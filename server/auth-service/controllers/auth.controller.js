@@ -1,20 +1,22 @@
 import authService from '../services/auth.service.js';
+import config from '../config/index.js';
+import { parseDurationToMs } from '../../utils/duration.js';
 import { success, error } from '../../utils/response.js';
 
-const COOKIE_NAME = 'token';
-const COOKIE_OPTIONS = {
+const COOKIE_NAME = process.env.COOKIE_NAME || 'token';
+const getCookieOptions = () => ({
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax',
+  secure: process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production',
+  sameSite: process.env.COOKIE_SAME_SITE || 'lax',
   path: '/',
-  maxAge: 24 * 60 * 60 * 1000 // 24 hours
-};
+  maxAge: parseDurationToMs(config.JWT_EXPIRES_IN || '24h')
+});
 
 class AuthController {
   async register(req, res) {
     try {
       const result = await authService.register(req.body);
-      res.cookie(COOKIE_NAME, result.token, COOKIE_OPTIONS);
+      res.cookie(COOKIE_NAME, result.token, getCookieOptions());
       return success(res, result, 'Account registered successfully', 201);
     } catch (err) {
       return error(res, err.message, err.status || 400);
@@ -24,7 +26,7 @@ class AuthController {
   async login(req, res) {
     try {
       const result = await authService.login(req.body);
-      res.cookie(COOKIE_NAME, result.token, COOKIE_OPTIONS);
+      res.cookie(COOKIE_NAME, result.token, getCookieOptions());
       return success(res, result, 'Login successful', 200);
     } catch (err) {
       return error(res, err.message, err.status || 401);
