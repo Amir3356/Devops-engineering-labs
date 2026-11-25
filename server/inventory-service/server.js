@@ -4,6 +4,9 @@ import express from 'express';
 import cors from 'cors';
 import { corsOptions } from '../utils/cors.js';
 import config from './config/index.js';
+import { initCache, cacheStatus } from '../utils/cache.js';
+
+initCache('inventory');
 import inventoryRoutes from './routes/inventory.routes.js';
 import { success } from '../utils/response.js';
 
@@ -27,6 +30,7 @@ app.get('/health', (req, res) => {
   return success(res, {
     service: 'inventory-service',
     status: 'UP',
+    cache: cacheStatus(),
     port: config.PORT,
     timestamp: new Date().toISOString()
   }, 'Inventory Service is healthy');

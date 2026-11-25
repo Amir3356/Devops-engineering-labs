@@ -23,6 +23,24 @@ services:
       - ecommerce-net
 
   # ========================================================
+  # 1b. Redis cache (in-memory only; services fall back to PostgreSQL if it is down)
+  # ========================================================
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ecommerce-net
+
+  # ========================================================
   # 2. Auth Microservice (Port 5008)
   # ========================================================
   auth-service:
@@ -90,6 +108,8 @@ services:
     environment:
       PORT: 5002
       PRODUCT_DB_URL: postgresql://postgres:postgres@postgres:5432/product_db
+      REDIS_URL: redis://redis:6379
+      CACHE_TTL_SECONDS: 60
       PURCHASE_SERVICE_URL: http://purchase-service:5003
       JWT_SECRET: ecommerce-microservices-secret-key-2026
       DB_POOL_MAX: 20
@@ -106,6 +126,8 @@ services:
       - "5002:5002"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       minio:
         condition: service_started
@@ -203,6 +225,8 @@ services:
     environment:
       PORT: 5006
       INVENTORY_DB_URL: postgresql://postgres:postgres@postgres:5432/inventory_db
+      REDIS_URL: redis://redis:6379
+      CACHE_TTL_SECONDS: 60
       JWT_SECRET: ecommerce-microservices-secret-key-2026
       DB_POOL_MAX: 20
       DB_POOL_IDLE_TIMEOUT: 30000
@@ -211,6 +235,8 @@ services:
       - "5006:5006"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - ecommerce-net
@@ -254,6 +280,8 @@ services:
     environment:
       PORT: 5009
       POLICY_DB_URL: postgresql://postgres:postgres@postgres:5432/policy_db
+      REDIS_URL: redis://redis:6379
+      CACHE_TTL_SECONDS: 60
       JWT_SECRET: ecommerce-microservices-secret-key-2026
       DB_POOL_MAX: 20
       DB_POOL_IDLE_TIMEOUT: 30000
@@ -262,6 +290,8 @@ services:
       - "5009:5009"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - ecommerce-net

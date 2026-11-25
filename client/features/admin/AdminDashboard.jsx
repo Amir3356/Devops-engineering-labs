@@ -59,8 +59,10 @@ import {
   RotateCcw,
   Sliders,
   TrendingUp,
-  DollarSign
+  DollarSign,
+  BarChart3
 } from 'lucide-react';
+import ReportsView from './ReportsView';
 
 // Built-in product choices for the Add Product dropdown, with a suggested category each
 const DEFAULT_PRODUCT_CATALOG = [
@@ -1999,6 +2001,15 @@ export default function AdminDashboard() {
             <span className="admin-nav-count">{orders.length}</span>
           </button>
 
+          <span className="side-section-label">Insights</span>
+          <button
+            className={`admin-nav-item ${activeAdminTab === 'reports' ? 'active' : ''}`}
+            onClick={() => setActiveAdminTab('reports')}
+          >
+            <BarChart3 size={18} />
+            <span>Reports</span>
+          </button>
+
           <span className="side-section-label">System &amp; Policy</span>
           {/* POLICY SIDEBAR ITEM */}
           <button
@@ -2224,6 +2235,21 @@ export default function AdminDashboard() {
                 emptyMessage='No sales recorded yet. Click "Add Sale" to record one.'
                 footerText={`Sales Ledger • ${sales.length} sale(s) • Gross Volume: $${totalSalesRevenue.toFixed(2)}`}
               />
+            </div>
+          )}
+
+          {/* REPORTS */}
+          {activeAdminTab === 'reports' && (
+            <div className="admin-view-content">
+              <div className="admin-page-header">
+                <div className="admin-page-heading">
+                  <h2 className="admin-view-title">Reports</h2>
+                  <p className="admin-view-sub">
+                    Revenue, profit and product performance from customer orders and direct sales — updates live.
+                  </p>
+                </div>
+              </div>
+              <ReportsView orders={orders} sales={sales} inventory={inventory} purchases={purchases} />
             </div>
           )}
 

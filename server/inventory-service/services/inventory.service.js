@@ -1,19 +1,44 @@
 import inventoryRepository from '../repositories/inventory.repository.js';
+import InventoryModel from '../models/inventory.model.js';
+import { cached, invalidate } from '../../utils/cache.js';
+
+// Cached reads for pages (namespaced 'inventory:'). Stock checks and deductions
+// used by checkout/sales always read PostgreSQL directly — never the cache.
+const KEY_ALL = 'stock:all';
+const KEY_ITEM = (productId) => `stock:item:${productId}`;
+const toModels = (rows) => rows.map((r) => new InventoryModel(r));
+const clearStock = () => invalidate('stock');
+
+/**
+ * Run a write and invalidate the stock group only after it committed.
+ * A failed or rolled-back write (e.g. not enough stock) changed nothing, so nothing is invalidated.
+ */
+async function thenClear(promise) {
+  const result = await promise;
+  await clearStock();
+  return result;
+}
 
 /**
  * Inventory Domain Service
  */
 class InventoryService {
   async getAllStock() {
-    return inventoryRepository.findAll();
+    const rows = await cached(KEY_ALL, undefined, async () =>
+      (await inventoryRepository.findAll()).map((m) => m.toJSON())
+    );
+    return toModels(rows);
   }
 
   async getStockByProduct(productId) {
-    const item = await inventoryRepository.findByProductId(productId);
-    if (!item) {
-      throw new Error(`Inventory item for product ${productId} not found`);
-    }
-    return item;
+    const row = await cached(KEY_ITEM(productId), undefined, async () => {
+      const item = await inventoryRepository.findByProductId(productId);
+      if (!item) {
+        throw new Error(`Inventory item for product ${productId} not found`);
+      }
+      return item.toJSON();
+    });
+    return new InventoryModel(row);
   }
 
   async getLowStockItems() {
@@ -39,7 +64,7 @@ class InventoryService {
       opts.totalSellingPrice = Math.round(total * 100) / 100;
       opts.unitSellingPrice = Math.round((total / qty) * 100) / 100;
     }
-    return inventoryRepository.updateStock(productId, qty, opts);
+    return thenClear(inventoryRepository.updateStock(productId, qty, opts));
   }
 
   async deductItems(items) {
@@ -47,7 +72,7 @@ class InventoryService {
     if (normalised.some((i) => !i.productId || !(i.quantity > 0))) {
       throw new Error('Each item needs a productId and a positive quantity');
     }
-    return inventoryRepository.deductMany(normalised);
+    return thenClear(inventoryRepository.deductMany(normalised));
   }
 
   /**
@@ -74,9 +99,9 @@ class InventoryService {
       delete batch.unitSellingPrice;
     }
     if (batch.productName) {
-      return inventoryRepository.addBatchStock({ productId, quantity: qty, ...batch });
+      return thenClear(inventoryRepository.addBatchStock({ productId, quantity: qty, ...batch }));
     }
-    const updated = await inventoryRepository.replenishStock(productId, qty);
+    const updated = await thenClear(inventoryRepository.replenishStock(productId, qty));
     if (!updated) {
       throw new Error(`No inventory record for product ${productId}`);
     }
@@ -101,7 +126,7 @@ class InventoryService {
   }
 
   async deleteStock(productId) {
-    return inventoryRepository.deleteStock(productId);
+    return thenClear(inventoryRepository.deleteStock(productId));
   }
 }
 

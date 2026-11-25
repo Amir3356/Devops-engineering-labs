@@ -4819,3 +4819,151 @@ td.font-mono-cell > span { display: block; }
 
 /* One line per item when an order has several products */
 .order-item-lines { display: flex; flex-direction: column; gap: 6px; font-size: 0.88rem; }
+
+/* ==========================================================================
+   Admin → Reports
+   ========================================================================== */
+.viz-root {
+  --series-1: #2a78d6; /* customer orders (categorical slot 1) */
+  --series-2: #eb6834; /* direct sales   (categorical slot 2) */
+  --viz-grid: #e8ecea;
+}
+
+.reports-view { display: flex; flex-direction: column; gap: 20px; }
+
+.reports-filter-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.reports-range-btn {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.reports-range-btn:hover { color: var(--text-main); border-color: #c6d1cb; }
+.reports-range-btn.active { background: var(--forest-800); border-color: var(--forest-800); color: #fff; }
+
+.reports-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+.reports-kpi {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+}
+.reports-kpi-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.reports-kpi-value { margin-top: 8px; font-size: 1.55rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.02em; }
+.reports-kpi-note { margin-top: 4px; font-size: 0.78rem; color: var(--text-muted); }
+
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+.reports-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+}
+.reports-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+.reports-card-head h3 { font-size: 1rem; font-weight: 700; }
+.reports-card-head p { margin-top: 2px; font-size: 0.82rem; color: var(--text-muted); }
+
+.reports-legend { display: flex; gap: 16px; font-size: 0.82rem; color: var(--text-muted); }
+.reports-legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+.reports-chart { position: relative; }
+.reports-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.reports-grid { stroke: var(--viz-grid); stroke-width: 1; }
+.reports-baseline { stroke: #c9d2cd; stroke-width: 1; }
+.reports-axis { fill: var(--text-muted); font-size: 11px; }
+.reports-bar-label { fill: var(--text-main); font-size: 12.5px; font-weight: 600; }
+.reports-bar-value { fill: var(--text-main); font-size: 12px; font-weight: 700; }
+.reports-hit { cursor: default; outline: none; }
+.reports-hit:hover, .reports-hit:focus-visible { fill: rgba(20, 60, 40, 0.05); }
+
+.reports-tooltip {
+  position: absolute;
+  z-index: 5;
+  transform: translate(12px, -50%);
+  pointer-events: none;
+  min-width: 170px;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: var(--shadow-md);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.reports-tooltip .tt-title { font-weight: 700; color: var(--text-main); margin-bottom: 6px; }
+.reports-tooltip .tt-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+.reports-tooltip .tt-row strong, .reports-tooltip .tt-total strong { color: var(--text-main); }
+.reports-tooltip .tt-key { display: inline-block; width: 12px; height: 2px; border-radius: 1px; }
+.reports-tooltip .tt-total { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border-color); }
+
+.reports-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-main);
+  font-weight: 600;
+  font-size: 0.84rem;
+}
+.reports-export-btn:hover { background: var(--bg-hover); }
+
+.reports-table-wrap { overflow-x: auto; margin: 0 -20px -18px; }
+.reports-table th.num, .reports-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.reports-loss { color: var(--rose); font-weight: 600; }
+
+.reports-empty {
+  background: var(--bg-card);
+  border: 1px dashed var(--border-color);
+  border-radius: 14px;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.reports-empty h3 { color: var(--text-main); margin-bottom: 4px; }
+.reports-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .reports-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .reports-kpi-grid { grid-template-columns: 1fr; } }
+.reports-tooltip { white-space: nowrap; }
+.reports-tooltip.flip { transform: translate(calc(-100% - 12px), -50%); }
+
+/* Reports: Period dropdown + custom date range */
+.reports-filter-row { align-items: flex-end; gap: 14px; }
+.reports-filter-field { display: flex; flex-direction: column; gap: 6px; }
+.reports-filter-field label { font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.reports-filter-field select,
+.reports-filter-field input[type="date"] {
+  min-width: 200px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+.reports-filter-field input[type="date"] { min-width: 170px; }
+.reports-filter-field select:focus,
+.reports-filter-field input[type="date"]:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(31, 122, 77, 0.14); }
+.reports-period-label { padding-bottom: 10px; font-size: 0.85rem; color: var(--text-muted); }
+.reports-period-label.error { color: var(--rose); font-weight: 600; }
