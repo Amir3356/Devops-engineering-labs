@@ -1,0 +1,1180 @@
+# Grafana-managed alert rules (generated) — 6 groups: health, resources, performance,
+# database, broker & queues, logs. Notification routing: notifications.yaml
+apiVersion: 1
+groups:
+- orgId: 1
+  name: Service health
+  folder: NexusCommerce Alerts
+  interval: 30s
+  rules:
+  - uid: svc-down
+    title: Service down
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: 1 - probe_success{job="health-services"}
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 1m
+    isPaused: false
+    labels:
+      severity: critical
+      category: Service health
+    annotations:
+      summary: '{{ $labels.service }} is DOWN'
+      description: GET /health on {{ $labels.service }} has failed for more than 1 minute (no answer, HTTP 503, or status DOWN). Check the container
+        (docker compose ps / logs) and its critical dependency (PostgreSQL).
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: svc-degraded
+    title: Service degraded
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: service_health_status{job="services"} == 1
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    isPaused: false
+    labels:
+      severity: warning
+      category: Service health
+    annotations:
+      summary: '{{ $labels.service }} is DEGRADED'
+      description: '{{ $labels.service }} still serves requests but a non-critical dependency check fails (Redis, Kafka, queue Redis or MinIO).
+        See the ''Dependency checks'' timeline on the dashboard.'
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: dep-check-failing
+    title: Dependency check failing
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: health_check_status{job="services"} == 0
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - -1
+    noDataState: OK
+    execErrState: Error
+    for: 3m
+    isPaused: false
+    labels:
+      severity: warning
+      category: Service health
+    annotations:
+      summary: '{{ $labels.service }}: dependency ''{{ $labels.check }}'' failing'
+      description: The {{ $labels.check }} check inside {{ $labels.service }}'s /health has been failing for 3 minutes (critical={{ $labels.critical
+        }}).
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: critical-dep-down
+    title: Critical dependency down
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: 1 - probe_success{tier="infrastructure",critical="true"}
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 1m
+    isPaused: false
+    labels:
+      severity: critical
+      category: Service health
+    annotations:
+      summary: '{{ $labels.service }} is unreachable'
+      description: '{{ $labels.service }} is a critical dependency (every service needs it) and has not accepted connections for 1 minute.'
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: dep-down
+    title: Dependency down
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: 1 - probe_success{tier="infrastructure",critical="false"}
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 2m
+    isPaused: false
+    labels:
+      severity: warning
+      category: Service health
+    annotations:
+      summary: '{{ $labels.service }} is unreachable'
+      description: '{{ $labels.service }} has been unreachable for 2 minutes. Services keep working in degraded mode (cache → PostgreSQL, outbox
+        buffers events, queued emails wait).'
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: observability-down
+    title: Monitoring component down
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: 1 - probe_success{tier="observability"}
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    isPaused: false
+    labels:
+      severity: warning
+      category: Service health
+    annotations:
+      summary: '{{ $labels.service }} (monitoring stack) is down'
+      description: '{{ $labels.service }} has failed its readiness probe for 5 minutes — metrics, logs or traces may be missing.'
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: svc-restarting
+    title: Service restarting
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: changes(process_start_time_seconds{job="services"}[15m])
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 2
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    labels:
+      severity: warning
+      category: Service health
+    annotations:
+      summary: '{{ $labels.service }} restarted {{ $values.A.Value }} times in 15 minutes'
+      description: '{{ $labels.service }} keeps restarting (crash loop, OOM kill or failing startup). Check its logs in Loki.'
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: scrape-target-down
+    title: Metrics target down
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: up == 0
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - -1
+    noDataState: OK
+    execErrState: Error
+    for: 3m
+    isPaused: false
+    labels:
+      severity: warning
+      category: Service health
+    annotations:
+      summary: Prometheus cannot scrape {{ $labels.job }} / {{ $labels.instance }}
+      description: The /metrics endpoint of {{ $labels.instance }} (job {{ $labels.job }}) has not answered for 3 minutes.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+- orgId: 1
+  name: System resources
+  folder: NexusCommerce Alerts
+  interval: 30s
+  rules:
+  - uid: host-cpu-high
+    title: High CPU usage
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: 100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])))
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 85
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    isPaused: false
+    labels:
+      severity: warning
+      category: System resources
+    annotations:
+      summary: Host CPU at {{ printf "%.1f" $values.A.Value }}%
+      description: Host CPU has been above 85% for 10 minutes.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: host-memory-high
+    title: High memory usage
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: 100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 90
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    isPaused: false
+    labels:
+      severity: critical
+      category: System resources
+    annotations:
+      summary: Host memory at {{ printf "%.1f" $values.A.Value }}%
+      description: Host memory has been above 90% for 5 minutes — risk of OOM kills.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: host-disk-warning
+    title: Disk filling up
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: 100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.*"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.*"})
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 85
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    isPaused: false
+    labels:
+      severity: warning
+      category: System resources
+    annotations:
+      summary: Disk {{ $labels.mountpoint }} at {{ printf "%.1f" $values.A.Value }}%
+      description: Filesystem usage above 85%.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: host-disk-critical
+    title: Disk almost full
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: 100 * (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.*"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|nsfs|fuse.*"})
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 95
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    isPaused: false
+    labels:
+      severity: critical
+      category: System resources
+    annotations:
+      summary: Disk {{ $labels.mountpoint }} at {{ printf "%.1f" $values.A.Value }}%
+      description: Filesystem usage above 95% — PostgreSQL, Kafka and Loki will fail to write.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: container-memory-high
+    title: Container memory high
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (container) (container_memory_working_set_bytes{container!=""}) / 1024 / 1024
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 1024
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    isPaused: false
+    labels:
+      severity: warning
+      category: System resources
+    annotations:
+      summary: '{{ $labels.container }} uses {{ printf "%.0f" $values.A.Value }} MiB'
+      description: Container working-set memory above 1 GiB for 10 minutes — possible memory leak.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+- orgId: 1
+  name: Application performance
+  folder: NexusCommerce Alerts
+  interval: 30s
+  rules:
+  - uid: http-5xx-rate
+    title: High 5xx error rate
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: 100 * sum by (service) (rate(http_request_duration_seconds_count{status=~"5.."}[5m])) / (sum by (service) (rate(http_request_duration_seconds_count[5m]))
+          > 0.05)
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 5
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    isPaused: false
+    labels:
+      severity: critical
+      category: Application performance
+    annotations:
+      summary: '{{ $labels.service }}: {{ printf "%.1f" $values.A.Value }}% of requests fail with 5xx'
+      description: More than 5% of {{ $labels.service }}'s requests returned 5xx over the last 5 minutes. Open 'Traces with errors' and the error
+        logs for this service.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: http-p95-latency
+    title: High p95 latency
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: histogram_quantile(0.95, sum by (le, service) (rate(http_request_duration_seconds_bucket[5m]))) and on (service) sum by (service)
+          (rate(http_request_duration_seconds_count[5m])) > 0.05
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 1
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    isPaused: false
+    labels:
+      severity: warning
+      category: Application performance
+    annotations:
+      summary: '{{ $labels.service }}: p95 latency {{ printf "%.2f" $values.A.Value }}s'
+      description: 95th percentile response time of {{ $labels.service }} has been above 1s for 10 minutes.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: http-concurrency-high
+    title: Too many concurrent requests
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (service) (http_requests_in_flight)
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 200
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    isPaused: false
+    labels:
+      severity: warning
+      category: Application performance
+    annotations:
+      summary: '{{ $labels.service }}: {{ $values.A.Value }} requests in flight'
+      description: '{{ $labels.service }} has had more than 200 concurrent requests for 5 minutes.'
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: event-loop-lag
+    title: Event loop blocked
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: nodejs_eventloop_lag_p99_seconds{job="services"}
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.5
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    isPaused: false
+    labels:
+      severity: warning
+      category: Application performance
+    annotations:
+      summary: '{{ $labels.service }}: event loop lag p99 {{ printf "%.2f" $values.A.Value }}s'
+      description: '{{ $labels.service }}''s event loop is blocked (CPU-heavy or synchronous code) — every request in it is delayed.'
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+- orgId: 1
+  name: Database
+  folder: NexusCommerce Alerts
+  interval: 30s
+  rules:
+  - uid: db-pool-saturated
+    title: DB connection pool saturated
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: 100 * sum by (service) (db_pool_connections{state="active"}) / sum by (service) (db_pool_connections{state="max"})
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 90
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    isPaused: false
+    labels:
+      severity: warning
+      category: Database
+    annotations:
+      summary: '{{ $labels.service }}: DB pool {{ printf "%.1f" $values.A.Value }}% used'
+      description: '{{ $labels.service }} uses more than 90% of its pg pool (DB_POOL_MAX) for 5 minutes.'
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: db-pool-waiting
+    title: Requests waiting for a DB connection
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (service) (db_pool_connections{state="waiting"})
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 2m
+    isPaused: false
+    labels:
+      severity: critical
+      category: Database
+    annotations:
+      summary: '{{ $labels.service }}: {{ $values.A.Value }} callers waiting for a DB connection'
+      description: '{{ $labels.service }}''s pool is exhausted — requests queue for a connection (slow queries, leaks, or pool too small).'
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: db-slow-queries
+    title: Slow queries
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (service) (increase(db_slow_queries_total[10m]))
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 10
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    labels:
+      severity: warning
+      category: Database
+    annotations:
+      summary: '{{ $labels.service }}: {{ humanize $values.A.Value }} slow queries in 10 minutes'
+      description: More than 10 queries slower than DB_SLOW_QUERY_MS in 10 minutes.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: db-lock-wait
+    title: Long lock wait
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: max by (datname) (pg_lock_waits_max_wait_seconds)
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 30
+    noDataState: OK
+    execErrState: Error
+    for: 1m
+    isPaused: false
+    labels:
+      severity: warning
+      category: Database
+    annotations:
+      summary: '{{ $labels.datname }}: a session waits {{ printf "%.2f" $values.A.Value }}s for a lock'
+      description: A PostgreSQL session has been blocked on a lock for more than 30 seconds.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: db-deadlocks
+    title: Deadlocks detected
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (datname) (increase(pg_stat_database_deadlocks{datname=~".+_db"}[10m]))
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    labels:
+      severity: warning
+      category: Database
+    annotations:
+      summary: '{{ $labels.datname }}: {{ humanize $values.A.Value }} deadlocks in 10 minutes'
+      description: PostgreSQL aborted transactions due to deadlocks.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: db-connections-high
+    title: PostgreSQL connections near limit
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: 100 * sum(pg_stat_activity_count) / max(pg_settings_max_connections)
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 80
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    isPaused: false
+    labels:
+      severity: critical
+      category: Database
+    annotations:
+      summary: PostgreSQL at {{ printf "%.1f" $values.A.Value }}% of max_connections
+      description: New connections will soon be refused.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: db-idle-in-tx
+    title: Idle-in-transaction sessions
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (datname) (pg_long_running_queries_idle_in_transaction)
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 3
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    isPaused: false
+    labels:
+      severity: warning
+      category: Database
+    annotations:
+      summary: '{{ $labels.datname }}: {{ $values.A.Value }} sessions idle in transaction'
+      description: Open transactions that do nothing hold locks and block vacuum — likely a missing COMMIT/ROLLBACK.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+- orgId: 1
+  name: Message broker & queues
+  folder: NexusCommerce Alerts
+  interval: 30s
+  rules:
+  - uid: kafka-lag
+    title: Kafka consumer lag high
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (consumergroup) (kafka_consumergroup_lag{consumergroup!~"api-gateway-realtime-.*"})
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 1000
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    isPaused: false
+    labels:
+      severity: warning
+      category: Message broker & queues
+    annotations:
+      summary: '{{ $labels.consumergroup }}: lag {{ humanize $values.A.Value }} messages'
+      description: Consumer group is more than 1000 messages behind for 10 minutes — events are processed late.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: kafka-dlq
+    title: Messages dead-lettered
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (topic) (increase(kafka_topic_partition_current_offset{topic=~".*\\.dlq"}[15m]))
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    labels:
+      severity: warning
+      category: Message broker & queues
+    annotations:
+      summary: '{{ $labels.topic }}: {{ humanize $values.A.Value }} new dead-lettered events'
+      description: A consumer gave up on events after retries. Inspect the DLQ topic and the consumer's error logs.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: outbox-stuck
+    title: Outbox not draining
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: max by (service) (outbox_oldest_unpublished_age_seconds)
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 300
+    noDataState: OK
+    execErrState: Error
+    for: 2m
+    isPaused: false
+    labels:
+      severity: critical
+      category: Message broker & queues
+    annotations:
+      summary: '{{ $labels.service }}: oldest unpublished event is {{ printf "%.0f" $values.A.Value }}s old'
+      description: Events written to the outbox are not reaching Kafka (Kafka down or relay failing).
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: queue-backlog
+    title: Job queue backlog
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (queue) (bullmq_queue_jobs{state=~"waiting|delayed|prioritized"})
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 500
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    isPaused: false
+    labels:
+      severity: warning
+      category: Message broker & queues
+    annotations:
+      summary: 'Queue {{ $labels.queue }}: {{ humanize $values.A.Value }} jobs waiting'
+      description: Background jobs pile up faster than workers process them.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: jobs-failed
+    title: Background jobs failing
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: sum by (queue) (increase(bullmq_jobs_failed_total{final="true"}[15m]))
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    labels:
+      severity: warning
+      category: Message broker & queues
+    annotations:
+      summary: 'Queue {{ $labels.queue }}: {{ humanize $values.A.Value }} jobs gave up'
+      description: Jobs exhausted their retries and moved to the failed set (e.g. emails not sent).
+      dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+- orgId: 1
+  name: Logs
+  folder: NexusCommerce Alerts
+  interval: 30s
+  rules:
+  - uid: log-error-spike
+    title: Error log spike
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+      datasourceUid: loki
+      model:
+        refId: A
+        expr: sum by (service) (count_over_time({level=~"error|fatal|panic"}[5m]))
+        queryType: instant
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 50
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    isPaused: false
+    labels:
+      severity: warning
+      category: Logs
+    annotations:
+      summary: '{{ $labels.service }}: {{ humanize $values.A.Value }} error log lines in 5 minutes'
+      description: Unusual amount of error logs. Open the Logs & Traces dashboard filtered to this service.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-logs-traces/nexuscommerce-logs-and-traces

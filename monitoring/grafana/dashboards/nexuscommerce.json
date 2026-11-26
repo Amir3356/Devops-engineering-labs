@@ -7,7 +7,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 3,
+  "version": 4,
   "editable": false,
   "graphTooltip": 1,
   "refresh": "10s",
@@ -25,6 +25,16 @@
     ]
   },
   "links": [
+    {
+      "title": "Live (1 s)",
+      "type": "link",
+      "icon": "bolt",
+      "url": "/d/nexuscommerce-live/nexuscommerce-live",
+      "keepTime": false,
+      "includeVars": false,
+      "targetBlank": false,
+      "tooltip": "Real-time metrics over Grafana Live (WebSocket)"
+    },
     {
       "title": "Logs & Traces",
       "type": "link",
@@ -69,6 +79,83 @@
         "definition": "label_values(up{job=\"services\"}, service)",
         "refresh": 2,
         "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "hide": 0
+      },
+      {
+        "name": "api_service",
+        "label": "API service",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(http_request_duration_seconds_count{route=~\"/api/.+\"}, service)",
+          "refId": "api_service"
+        },
+        "definition": "label_values(http_request_duration_seconds_count{route=~\"/api/.+\"}, service)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {
+          "selected": true,
+          "text": [
+            "api-gateway"
+          ],
+          "value": [
+            "api-gateway"
+          ]
+        },
+        "hide": 0
+      },
+      {
+        "name": "endpoint",
+        "label": "Endpoint",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\"}, route)",
+          "refId": "endpoint"
+        },
+        "definition": "label_values(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\"}, route)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "hide": 0
+      },
+      {
+        "name": "method",
+        "label": "Method",
+        "type": "custom",
+        "query": "GET,POST,PUT,PATCH,DELETE",
         "multi": true,
         "includeAll": true,
         "allValue": ".+",
@@ -657,7 +744,7 @@
     {
       "type": "row",
       "id": 10,
-      "title": "0 \u00b7 Microservice Health Checks",
+      "title": "API Latency & Throughput",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -670,6 +757,1716 @@
     {
       "type": "stat",
       "id": 11,
+      "title": "API throughput",
+      "description": "Completed API requests per second (selected service / endpoints / methods)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 0,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(rate(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[$__rate_interval]))",
+          "range": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 12,
+      "title": "Requests / min",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 3,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(increase(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[1m]))",
+          "range": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 13,
+      "title": "Avg latency",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.3
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(rate(http_request_duration_seconds_sum{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[5m])) / clamp_min(sum(rate(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[5m])), 1e-9)",
+          "range": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 14,
+      "title": "p50 latency",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.2
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[5m])))",
+          "range": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 15,
+      "title": "p95 latency",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[5m])))",
+          "range": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 16,
+      "title": "p99 latency",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 2.5
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[5m])))",
+          "range": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 17,
+      "title": "API error rate",
+      "description": "5xx share of API requests",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "100 * (sum(rate(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\",status=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[5m])), 1e-9)",
+          "range": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 18,
+      "title": "Apdex (T = 250 ms)",
+      "description": "User satisfaction 0\u20131: requests \u2264 250 ms count fully, \u2264 1 s count half, slower count zero",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 21,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.7
+              },
+              {
+                "color": "green",
+                "value": 0.9
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "orientation": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "(sum(rate(http_request_duration_seconds_bucket{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\",le=\"0.25\"}[5m])) + sum(rate(http_request_duration_seconds_bucket{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\",le=\"1\"}[5m]))) / 2 / clamp_min(sum(rate(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[5m])), 1e-9)",
+          "range": true
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 19,
+      "title": "API latency percentiles",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "gradientMode": "opacity",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "p50"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "p90"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "p95"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "p99"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    6,
+                    6
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "p50"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "histogram_quantile(0.90, sum by (le) (rate(http_request_duration_seconds_bucket{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "p90"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "C",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "p95"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "D",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "p99"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "E",
+          "expr": "sum(rate(http_request_duration_seconds_sum{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[$__rate_interval])) / sum(rate(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[$__rate_interval]))",
+          "range": true,
+          "legendFormat": "avg"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 20,
+      "title": "API throughput \u2014 success vs errors",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 50,
+            "showPoints": "never",
+            "spanNulls": true,
+            "gradientMode": "opacity",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "success.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "client.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "server.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(rate(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\",status=~\"[23]..\"}[$__rate_interval]))",
+          "range": true,
+          "legendFormat": "success (2xx/3xx)"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "sum(rate(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\",status=~\"4..\"}[$__rate_interval]))",
+          "range": true,
+          "legendFormat": "client errors (4xx)"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "C",
+          "expr": "sum(rate(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\",status=~\"5..\"}[$__rate_interval]))",
+          "range": true,
+          "legendFormat": "server errors (5xx)"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 21,
+      "title": "Latency p95 by endpoint",
+      "description": "Top 10 slowest endpoints",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 19
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "gradientMode": "opacity",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "topk(10, histogram_quantile(0.95, sum by (le, method, route) (rate(http_request_duration_seconds_bucket{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[$__rate_interval]))))",
+          "range": true,
+          "legendFormat": "{{method}} {{route}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 22,
+      "title": "Throughput by endpoint",
+      "description": "Top 10 busiest endpoints",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 19
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 30,
+            "showPoints": "never",
+            "spanNulls": true,
+            "gradientMode": "opacity",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "topk(10, sum by (method, route) (rate(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "{{method}} {{route}}"
+        }
+      ]
+    },
+    {
+      "type": "heatmap",
+      "id": 23,
+      "title": "API latency distribution",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "description": "How many requests fell into each latency bucket over time \u2014 spot slow outliers the averages hide",
+      "options": {
+        "calculate": false,
+        "cellGap": 1,
+        "yAxis": {
+          "unit": "s",
+          "axisPlacement": "left"
+        },
+        "color": {
+          "mode": "scheme",
+          "scheme": "Oranges",
+          "steps": 64,
+          "exponent": 0.5,
+          "fill": "dark-orange"
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "tooltip": {
+          "mode": "single",
+          "yHistogram": true
+        },
+        "legend": {
+          "show": true
+        },
+        "exemplars": {
+          "color": "rgba(255,0,255,0.7)"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "format": "heatmap",
+          "legendFormat": "{{le}}",
+          "range": true,
+          "expr": "sum by (le) (increase(http_request_duration_seconds_bucket{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[$__rate_interval]))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 24,
+      "title": "Throughput by method",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 28
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 40,
+            "showPoints": "never",
+            "spanNulls": true,
+            "gradientMode": "opacity",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (method) (rate(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[$__rate_interval]))",
+          "range": true,
+          "legendFormat": "{{method}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 25,
+      "title": "Data throughput",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 28
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 30,
+            "showPoints": "never",
+            "spanNulls": true,
+            "gradientMode": "opacity",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(rate(http_response_size_bytes_sum{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[$__rate_interval]))",
+          "range": true,
+          "legendFormat": "response bytes/s"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "id": 26,
+      "title": "API endpoint scorecard",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      },
+      "description": "Latency and throughput per endpoint (last 5 minutes; 'Requests (range)' covers the dashboard time range). Click a header to sort.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Requests / s"
+              },
+              {
+                "id": "unit",
+                "value": "reqps"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "lcd",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-BlPu"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #B"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Requests (range)"
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #C"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Avg"
+              },
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.5
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #D"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "p50"
+              },
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.5
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #E"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "p95"
+              },
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.5
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #F"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "p99"
+              },
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.5
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #G"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Error %"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 5
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Requests / s",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "service": 0,
+              "method": 1,
+              "route": 2
+            },
+            "renameByName": {
+              "service": "Service",
+              "method": "Method",
+              "route": "Endpoint"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (service, method, route) (rate(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[5m]))",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "round(sum by (service, method, route) (increase(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[$__range])))",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "C",
+          "expr": "sum by (service, method, route) (rate(http_request_duration_seconds_sum{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[5m])) / sum by (service, method, route) (rate(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[5m]))",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "D",
+          "expr": "histogram_quantile(0.50, sum by (le, service, method, route) (rate(http_request_duration_seconds_bucket{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[5m])))",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "E",
+          "expr": "histogram_quantile(0.95, sum by (le, service, method, route) (rate(http_request_duration_seconds_bucket{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[5m])))",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "F",
+          "expr": "histogram_quantile(0.99, sum by (le, service, method, route) (rate(http_request_duration_seconds_bucket{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[5m])))",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "G",
+          "expr": "100 * (sum by (service, method, route) (rate(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\",status=~\"5..\"}[5m])) or sum by (service, method, route) (rate(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[5m])) * 0) / sum by (service, method, route) (rate(http_request_duration_seconds_count{service=~\"$api_service\",route=~\"/api/.+\",route=~\"$endpoint\",method=~\"$method\"}[5m]))",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 27,
+      "title": "0 \u00b7 Microservice Health Checks",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 46
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 28,
       "title": "Overall system health",
       "description": "HEALTHY / DEGRADED / CRITICAL \u2014 worst of every /health probe, infrastructure probe and service self-check",
       "datasource": {
@@ -680,7 +2477,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 6
+        "y": 47
       },
       "fieldConfig": {
         "defaults": {
@@ -758,7 +2555,7 @@
     },
     {
       "type": "stat",
-      "id": 12,
+      "id": 29,
       "title": "Services healthy",
       "description": "Microservices whose GET /health answers UP/DEGRADED (of 10)",
       "datasource": {
@@ -769,7 +2566,7 @@
         "h": 5,
         "w": 3,
         "x": 6,
-        "y": 6
+        "y": 47
       },
       "fieldConfig": {
         "defaults": {
@@ -825,7 +2622,7 @@
     },
     {
       "type": "stat",
-      "id": 13,
+      "id": 30,
       "title": "Dependencies healthy",
       "description": "PostgreSQL, Kafka, Redis cache, Redis queue, MinIO (of 5)",
       "datasource": {
@@ -836,7 +2633,7 @@
         "h": 5,
         "w": 3,
         "x": 9,
-        "y": 6
+        "y": 47
       },
       "fieldConfig": {
         "defaults": {
@@ -892,7 +2689,7 @@
     },
     {
       "type": "stat",
-      "id": 14,
+      "id": 31,
       "title": "Availability (24h)",
       "description": "Share of successful /health probes over 24h, averaged over services",
       "datasource": {
@@ -903,7 +2700,7 @@
         "h": 5,
         "w": 3,
         "x": 12,
-        "y": 6
+        "y": 47
       },
       "fieldConfig": {
         "defaults": {
@@ -960,7 +2757,7 @@
     },
     {
       "type": "stat",
-      "id": 15,
+      "id": 32,
       "title": "Failed health checks (1h)",
       "description": "Failed blackbox probes (service /health + infrastructure) in the last hour",
       "datasource": {
@@ -971,7 +2768,7 @@
         "h": 5,
         "w": 3,
         "x": 15,
-        "y": 6
+        "y": 47
       },
       "fieldConfig": {
         "defaults": {
@@ -1028,7 +2825,7 @@
     },
     {
       "type": "stat",
-      "id": 16,
+      "id": 33,
       "title": "Failed dependency checks (1h)",
       "description": "Dependency checks (postgres, redis, kafka \u2026) that failed inside the services' own /health",
       "datasource": {
@@ -1039,7 +2836,7 @@
         "h": 5,
         "w": 3,
         "x": 18,
-        "y": 6
+        "y": 47
       },
       "fieldConfig": {
         "defaults": {
@@ -1096,7 +2893,7 @@
     },
     {
       "type": "stat",
-      "id": 17,
+      "id": 34,
       "title": "Service restarts (1h)",
       "description": "Node processes that restarted (crash, OOM, redeploy)",
       "datasource": {
@@ -1107,7 +2904,7 @@
         "h": 5,
         "w": 3,
         "x": 21,
-        "y": 6
+        "y": 47
       },
       "fieldConfig": {
         "defaults": {
@@ -1163,8 +2960,40 @@
       ]
     },
     {
+      "type": "alertlist",
+      "id": 35,
+      "title": "Active alerts",
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "description": "Firing and pending Grafana alerts (rules: Alerting \u2192 Alert rules \u2192 NexusCommerce Alerts)",
+      "options": {
+        "viewMode": "list",
+        "groupMode": "default",
+        "groupBy": [],
+        "maxItems": 20,
+        "sortOrder": 3,
+        "dashboardAlerts": false,
+        "alertName": "",
+        "alertInstanceLabelFilter": "",
+        "folder": null,
+        "showInstances": true,
+        "datasource": "grafana",
+        "stateFilter": {
+          "firing": true,
+          "pending": true,
+          "noData": false,
+          "normal": false,
+          "error": true
+        }
+      }
+    },
+    {
       "type": "stat",
-      "id": 18,
+      "id": 36,
       "title": "Microservice health status",
       "description": "UP: /health passes. DEGRADED: a non-critical dependency fails. DOWN: /health fails or does not answer.",
       "datasource": {
@@ -1175,7 +3004,7 @@
         "h": 5,
         "w": 24,
         "x": 0,
-        "y": 11
+        "y": 58
       },
       "fieldConfig": {
         "defaults": {
@@ -1271,7 +3100,7 @@
     },
     {
       "type": "stat",
-      "id": 19,
+      "id": 37,
       "title": "Infrastructure & observability",
       "description": "",
       "datasource": {
@@ -1282,7 +3111,7 @@
         "h": 4,
         "w": 24,
         "x": 0,
-        "y": 16
+        "y": 63
       },
       "fieldConfig": {
         "defaults": {
@@ -1369,7 +3198,7 @@
     },
     {
       "type": "state-timeline",
-      "id": 20,
+      "id": 38,
       "title": "Health history by service",
       "description": "Red/orange bands = failed or degraded health checks",
       "datasource": {
@@ -1380,7 +3209,7 @@
         "h": 10,
         "w": 12,
         "x": 0,
-        "y": 20
+        "y": 67
       },
       "fieldConfig": {
         "defaults": {
@@ -1471,7 +3300,7 @@
     },
     {
       "type": "state-timeline",
-      "id": 21,
+      "id": 39,
       "title": "Dependency checks (inside each service)",
       "description": "",
       "datasource": {
@@ -1482,7 +3311,7 @@
         "h": 10,
         "w": 12,
         "x": 12,
-        "y": 20
+        "y": 67
       },
       "fieldConfig": {
         "defaults": {
@@ -1564,7 +3393,7 @@
     },
     {
       "type": "timeseries",
-      "id": 22,
+      "id": 40,
       "title": "Failed health checks",
       "description": "Per 5 minutes",
       "datasource": {
@@ -1575,7 +3404,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 30
+        "y": 77
       },
       "fieldConfig": {
         "defaults": {
@@ -1653,7 +3482,7 @@
     },
     {
       "type": "timeseries",
-      "id": 23,
+      "id": 41,
       "title": "Health check response time",
       "description": "",
       "datasource": {
@@ -1664,7 +3493,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 30
+        "y": 77
       },
       "fieldConfig": {
         "defaults": {
@@ -1740,7 +3569,7 @@
     },
     {
       "type": "timeseries",
-      "id": 24,
+      "id": 42,
       "title": "Dependency check latency",
       "description": "",
       "datasource": {
@@ -1751,7 +3580,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 30
+        "y": 77
       },
       "fieldConfig": {
         "defaults": {
@@ -1819,20 +3648,20 @@
     },
     {
       "type": "row",
-      "id": 25,
+      "id": 43,
       "title": "1 \u00b7 System Resource Monitoring",
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 38
+        "y": 85
       },
       "panels": []
     },
     {
       "type": "gauge",
-      "id": 26,
+      "id": 44,
       "title": "CPU usage",
       "description": "Host CPU busy time across all cores (node-exporter)",
       "datasource": {
@@ -1843,7 +3672,7 @@
         "h": 6,
         "w": 4,
         "x": 0,
-        "y": 39
+        "y": 86
       },
       "fieldConfig": {
         "defaults": {
@@ -1899,7 +3728,7 @@
     },
     {
       "type": "gauge",
-      "id": 27,
+      "id": 45,
       "title": "RAM usage",
       "description": "Host memory in use, excluding reclaimable page cache",
       "datasource": {
@@ -1910,7 +3739,7 @@
         "h": 6,
         "w": 4,
         "x": 4,
-        "y": 39
+        "y": 86
       },
       "fieldConfig": {
         "defaults": {
@@ -1966,7 +3795,7 @@
     },
     {
       "type": "gauge",
-      "id": 28,
+      "id": 46,
       "title": "Disk usage (/)",
       "description": "Root filesystem of the host",
       "datasource": {
@@ -1977,7 +3806,7 @@
         "h": 6,
         "w": 4,
         "x": 8,
-        "y": 39
+        "y": 86
       },
       "fieldConfig": {
         "defaults": {
@@ -2033,7 +3862,7 @@
     },
     {
       "type": "stat",
-      "id": 29,
+      "id": 47,
       "title": "Disk read",
       "description": "",
       "datasource": {
@@ -2044,7 +3873,7 @@
         "h": 6,
         "w": 4,
         "x": 12,
-        "y": 39
+        "y": 86
       },
       "fieldConfig": {
         "defaults": {
@@ -2092,7 +3921,7 @@
     },
     {
       "type": "stat",
-      "id": 30,
+      "id": 48,
       "title": "Disk write",
       "description": "",
       "datasource": {
@@ -2103,7 +3932,7 @@
         "h": 6,
         "w": 4,
         "x": 16,
-        "y": 39
+        "y": 86
       },
       "fieldConfig": {
         "defaults": {
@@ -2151,7 +3980,7 @@
     },
     {
       "type": "stat",
-      "id": 31,
+      "id": 49,
       "title": "Load avg (1m) / cores",
       "description": "1.0 = every core busy on average",
       "datasource": {
@@ -2162,7 +3991,7 @@
         "h": 6,
         "w": 4,
         "x": 20,
-        "y": 39
+        "y": 86
       },
       "fieldConfig": {
         "defaults": {
@@ -2219,7 +4048,7 @@
     },
     {
       "type": "timeseries",
-      "id": 32,
+      "id": 50,
       "title": "CPU usage (%) by mode",
       "description": "",
       "datasource": {
@@ -2230,7 +4059,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 45
+        "y": 92
       },
       "fieldConfig": {
         "defaults": {
@@ -2300,7 +4129,7 @@
     },
     {
       "type": "timeseries",
-      "id": 33,
+      "id": 51,
       "title": "RAM usage",
       "description": "",
       "datasource": {
@@ -2311,7 +4140,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 45
+        "y": 92
       },
       "fieldConfig": {
         "defaults": {
@@ -2433,7 +4262,7 @@
     },
     {
       "type": "timeseries",
-      "id": 34,
+      "id": 52,
       "title": "Disk usage (%) by mount",
       "description": "",
       "datasource": {
@@ -2444,7 +4273,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 45
+        "y": 92
       },
       "fieldConfig": {
         "defaults": {
@@ -2522,7 +4351,7 @@
     },
     {
       "type": "timeseries",
-      "id": 35,
+      "id": 53,
       "title": "Disk I/O throughput (read \u2191 / write \u2193)",
       "description": "",
       "datasource": {
@@ -2533,7 +4362,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 53
+        "y": 100
       },
       "fieldConfig": {
         "defaults": {
@@ -2624,7 +4453,7 @@
     },
     {
       "type": "timeseries",
-      "id": 36,
+      "id": 54,
       "title": "Disk IOPS & utilisation",
       "description": "",
       "datasource": {
@@ -2635,7 +4464,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 53
+        "y": 100
       },
       "fieldConfig": {
         "defaults": {
@@ -2752,7 +4581,7 @@
     },
     {
       "type": "timeseries",
-      "id": 37,
+      "id": 55,
       "title": "Container CPU (% of one core)",
       "description": "cAdvisor, per docker-compose service",
       "datasource": {
@@ -2763,7 +4592,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 61
+        "y": 108
       },
       "fieldConfig": {
         "defaults": {
@@ -2831,7 +4660,7 @@
     },
     {
       "type": "timeseries",
-      "id": 38,
+      "id": 56,
       "title": "Container memory (working set)",
       "description": "",
       "datasource": {
@@ -2842,7 +4671,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 61
+        "y": 108
       },
       "fieldConfig": {
         "defaults": {
@@ -2910,7 +4739,7 @@
     },
     {
       "type": "timeseries",
-      "id": 39,
+      "id": 57,
       "title": "Container disk I/O (read \u2191 / write \u2193)",
       "description": "",
       "datasource": {
@@ -2921,7 +4750,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 61
+        "y": 108
       },
       "fieldConfig": {
         "defaults": {
@@ -3012,7 +4841,7 @@
     },
     {
       "type": "timeseries",
-      "id": 40,
+      "id": 58,
       "title": "Node.js process CPU by service",
       "description": "",
       "datasource": {
@@ -3023,7 +4852,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 69
+        "y": 116
       },
       "fieldConfig": {
         "defaults": {
@@ -3091,7 +4920,7 @@
     },
     {
       "type": "timeseries",
-      "id": 41,
+      "id": 59,
       "title": "Node.js memory (RSS / heap) by service",
       "description": "",
       "datasource": {
@@ -3102,7 +4931,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 69
+        "y": 116
       },
       "fieldConfig": {
         "defaults": {
@@ -3180,20 +5009,20 @@
     },
     {
       "type": "row",
-      "id": 42,
+      "id": 60,
       "title": "2 \u00b7 Application Concurrency Monitoring",
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 77
+        "y": 124
       },
       "panels": []
     },
     {
       "type": "stat",
-      "id": 43,
+      "id": 61,
       "title": "Concurrent HTTP requests",
       "description": "Requests being processed right now, all selected services",
       "datasource": {
@@ -3204,7 +5033,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 78
+        "y": 125
       },
       "fieldConfig": {
         "defaults": {
@@ -3260,7 +5089,7 @@
     },
     {
       "type": "stat",
-      "id": 44,
+      "id": 62,
       "title": "Active HTTP connections",
       "description": "Open client keep-alive sockets (inter-service + browser)",
       "datasource": {
@@ -3271,7 +5100,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 78
+        "y": 125
       },
       "fieldConfig": {
         "defaults": {
@@ -3319,7 +5148,7 @@
     },
     {
       "type": "stat",
-      "id": 45,
+      "id": 63,
       "title": "Concurrent users (5m)",
       "description": "Distinct logged-in users with a request through the gateway in the last 5 minutes",
       "datasource": {
@@ -3330,7 +5159,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 78
+        "y": 125
       },
       "fieldConfig": {
         "defaults": {
@@ -3378,7 +5207,7 @@
     },
     {
       "type": "stat",
-      "id": 46,
+      "id": 64,
       "title": "Users active (1m)",
       "description": "",
       "datasource": {
@@ -3389,7 +5218,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 78
+        "y": 125
       },
       "fieldConfig": {
         "defaults": {
@@ -3437,7 +5266,7 @@
     },
     {
       "type": "stat",
-      "id": 47,
+      "id": 65,
       "title": "WebSocket clients",
       "description": "Open real-time channels on the API gateway (/ws)",
       "datasource": {
@@ -3448,7 +5277,7 @@
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 78
+        "y": 125
       },
       "fieldConfig": {
         "defaults": {
@@ -3496,7 +5325,7 @@
     },
     {
       "type": "stat",
-      "id": 48,
+      "id": 66,
       "title": "Requests / s (gateway)",
       "description": "External traffic entering the system",
       "datasource": {
@@ -3507,7 +5336,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 78
+        "y": 125
       },
       "fieldConfig": {
         "defaults": {
@@ -3556,7 +5385,7 @@
     },
     {
       "type": "timeseries",
-      "id": 49,
+      "id": 67,
       "title": "Concurrent HTTP requests by service",
       "description": "Instant value per scrape and the per-minute peak (dotted)",
       "datasource": {
@@ -3567,7 +5396,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 82
+        "y": 129
       },
       "fieldConfig": {
         "defaults": {
@@ -3668,7 +5497,7 @@
     },
     {
       "type": "timeseries",
-      "id": 50,
+      "id": 68,
       "title": "Active HTTP connections by service",
       "description": "",
       "datasource": {
@@ -3679,7 +5508,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 82
+        "y": 129
       },
       "fieldConfig": {
         "defaults": {
@@ -3747,7 +5576,7 @@
     },
     {
       "type": "timeseries",
-      "id": 51,
+      "id": 69,
       "title": "Concurrent users",
       "description": "User-level tracking from the gateway's verified JWT (req.user.id)",
       "datasource": {
@@ -3758,7 +5587,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 82
+        "y": 129
       },
       "fieldConfig": {
         "defaults": {
@@ -3836,7 +5665,7 @@
     },
     {
       "type": "timeseries",
-      "id": 52,
+      "id": 70,
       "title": "Requests per second by service",
       "description": "",
       "datasource": {
@@ -3847,7 +5676,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 90
+        "y": 137
       },
       "fieldConfig": {
         "defaults": {
@@ -3915,7 +5744,7 @@
     },
     {
       "type": "timeseries",
-      "id": 53,
+      "id": 71,
       "title": "Requests per second by method",
       "description": "",
       "datasource": {
@@ -3926,7 +5755,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 90
+        "y": 137
       },
       "fieldConfig": {
         "defaults": {
@@ -3994,7 +5823,7 @@
     },
     {
       "type": "timeseries",
-      "id": 54,
+      "id": 72,
       "title": "Event-loop lag p99",
       "description": "A busy event loop delays every concurrent request in that service",
       "datasource": {
@@ -4005,7 +5834,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 90
+        "y": 137
       },
       "fieldConfig": {
         "defaults": {
@@ -4081,20 +5910,20 @@
     },
     {
       "type": "row",
-      "id": 55,
+      "id": 73,
       "title": "3 \u00b7 Application Performance Monitoring",
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 98
+        "y": 145
       },
       "panels": []
     },
     {
       "type": "stat",
-      "id": 56,
+      "id": 74,
       "title": "Avg response time",
       "description": "",
       "datasource": {
@@ -4105,7 +5934,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 99
+        "y": 146
       },
       "fieldConfig": {
         "defaults": {
@@ -4162,7 +5991,7 @@
     },
     {
       "type": "stat",
-      "id": 57,
+      "id": 75,
       "title": "P95 latency",
       "description": "",
       "datasource": {
@@ -4173,7 +6002,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 99
+        "y": 146
       },
       "fieldConfig": {
         "defaults": {
@@ -4230,7 +6059,7 @@
     },
     {
       "type": "stat",
-      "id": 58,
+      "id": 76,
       "title": "P99 latency",
       "description": "",
       "datasource": {
@@ -4241,7 +6070,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 99
+        "y": 146
       },
       "fieldConfig": {
         "defaults": {
@@ -4298,7 +6127,7 @@
     },
     {
       "type": "stat",
-      "id": 59,
+      "id": 77,
       "title": "4xx error rate",
       "description": "",
       "datasource": {
@@ -4309,7 +6138,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 99
+        "y": 146
       },
       "fieldConfig": {
         "defaults": {
@@ -4366,7 +6195,7 @@
     },
     {
       "type": "stat",
-      "id": 60,
+      "id": 78,
       "title": "5xx error rate",
       "description": "",
       "datasource": {
@@ -4377,7 +6206,7 @@
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 99
+        "y": 146
       },
       "fieldConfig": {
         "defaults": {
@@ -4434,7 +6263,7 @@
     },
     {
       "type": "stat",
-      "id": 61,
+      "id": 79,
       "title": "Throughput",
       "description": "Completed requests in the last minute (req/min)",
       "datasource": {
@@ -4445,7 +6274,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 99
+        "y": 146
       },
       "fieldConfig": {
         "defaults": {
@@ -4494,7 +6323,7 @@
     },
     {
       "type": "timeseries",
-      "id": 62,
+      "id": 80,
       "title": "Average response time by service",
       "description": "",
       "datasource": {
@@ -4505,7 +6334,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 103
+        "y": 150
       },
       "fieldConfig": {
         "defaults": {
@@ -4573,7 +6402,7 @@
     },
     {
       "type": "timeseries",
-      "id": 63,
+      "id": 81,
       "title": "P95 / P99 latency (selected services)",
       "description": "",
       "datasource": {
@@ -4584,7 +6413,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 103
+        "y": 150
       },
       "fieldConfig": {
         "defaults": {
@@ -4718,7 +6547,7 @@
     },
     {
       "type": "timeseries",
-      "id": 64,
+      "id": 82,
       "title": "P95 latency by service",
       "description": "",
       "datasource": {
@@ -4729,7 +6558,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 103
+        "y": 150
       },
       "fieldConfig": {
         "defaults": {
@@ -4797,7 +6626,7 @@
     },
     {
       "type": "timeseries",
-      "id": 65,
+      "id": 83,
       "title": "P99 latency by service",
       "description": "",
       "datasource": {
@@ -4808,7 +6637,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 111
+        "y": 158
       },
       "fieldConfig": {
         "defaults": {
@@ -4876,7 +6705,7 @@
     },
     {
       "type": "timeseries",
-      "id": 66,
+      "id": 84,
       "title": "HTTP error rate (%) \u2014 4xx / 5xx",
       "description": "",
       "datasource": {
@@ -4887,7 +6716,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 111
+        "y": 158
       },
       "fieldConfig": {
         "defaults": {
@@ -4997,7 +6826,7 @@
     },
     {
       "type": "timeseries",
-      "id": 67,
+      "id": 85,
       "title": "5xx errors / s by service",
       "description": "",
       "datasource": {
@@ -5008,7 +6837,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 111
+        "y": 158
       },
       "fieldConfig": {
         "defaults": {
@@ -5076,7 +6905,7 @@
     },
     {
       "type": "timeseries",
-      "id": 68,
+      "id": 86,
       "title": "Request throughput by status class",
       "description": "",
       "datasource": {
@@ -5087,7 +6916,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 119
+        "y": 166
       },
       "fieldConfig": {
         "defaults": {
@@ -5246,7 +7075,7 @@
     },
     {
       "type": "timeseries",
-      "id": 69,
+      "id": 87,
       "title": "Response throughput (bytes/s) by service",
       "description": "",
       "datasource": {
@@ -5257,7 +7086,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 119
+        "y": 166
       },
       "fieldConfig": {
         "defaults": {
@@ -5325,7 +7154,7 @@
     },
     {
       "type": "table",
-      "id": 70,
+      "id": 88,
       "title": "Slowest routes (p95, last 5m)",
       "description": "",
       "datasource": {
@@ -5336,7 +7165,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 127
+        "y": 174
       },
       "fieldConfig": {
         "defaults": {
@@ -5420,7 +7249,7 @@
     },
     {
       "type": "table",
-      "id": 71,
+      "id": 89,
       "title": "Routes with most errors (5xx/s, last 5m)",
       "description": "",
       "datasource": {
@@ -5431,7 +7260,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 127
+        "y": 174
       },
       "fieldConfig": {
         "defaults": {
@@ -5508,20 +7337,20 @@
     },
     {
       "type": "row",
-      "id": 72,
+      "id": 90,
       "title": "4 \u00b7 Database Monitoring",
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 135
+        "y": 182
       },
       "panels": []
     },
     {
       "type": "stat",
-      "id": 73,
+      "id": 91,
       "title": "Active DB connections",
       "description": "Server sessions executing a statement right now (all service databases)",
       "datasource": {
@@ -5532,7 +7361,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 136
+        "y": 183
       },
       "fieldConfig": {
         "defaults": {
@@ -5580,7 +7409,7 @@
     },
     {
       "type": "stat",
-      "id": 74,
+      "id": 92,
       "title": "Open DB connections",
       "description": "",
       "datasource": {
@@ -5591,7 +7420,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 136
+        "y": 183
       },
       "fieldConfig": {
         "defaults": {
@@ -5639,7 +7468,7 @@
     },
     {
       "type": "stat",
-      "id": 75,
+      "id": 93,
       "title": "Pool usage (max)",
       "description": "Highest checked-out / pool size across services",
       "datasource": {
@@ -5650,7 +7479,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 136
+        "y": 183
       },
       "fieldConfig": {
         "defaults": {
@@ -5707,7 +7536,7 @@
     },
     {
       "type": "stat",
-      "id": 76,
+      "id": 94,
       "title": "Slow queries (15m)",
       "description": "App-side queries over DB_SLOW_QUERY_MS (default 500 ms)",
       "datasource": {
@@ -5718,7 +7547,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 136
+        "y": 183
       },
       "fieldConfig": {
         "defaults": {
@@ -5775,7 +7604,7 @@
     },
     {
       "type": "stat",
-      "id": 77,
+      "id": 95,
       "title": "Lock waits now",
       "description": "",
       "datasource": {
@@ -5786,7 +7615,7 @@
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 136
+        "y": 183
       },
       "fieldConfig": {
         "defaults": {
@@ -5842,7 +7671,7 @@
     },
     {
       "type": "stat",
-      "id": 78,
+      "id": 96,
       "title": "Transactions / s",
       "description": "",
       "datasource": {
@@ -5853,7 +7682,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 136
+        "y": 183
       },
       "fieldConfig": {
         "defaults": {
@@ -5902,7 +7731,7 @@
     },
     {
       "type": "timeseries",
-      "id": 79,
+      "id": 97,
       "title": "DB connections by database & state",
       "description": "",
       "datasource": {
@@ -5913,7 +7742,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 140
+        "y": 187
       },
       "fieldConfig": {
         "defaults": {
@@ -6021,7 +7850,7 @@
     },
     {
       "type": "timeseries",
-      "id": 80,
+      "id": 98,
       "title": "Connection pool usage (%) by service",
       "description": "pg Pool: checked-out connections / max (DB_POOL_MAX)",
       "datasource": {
@@ -6032,7 +7861,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 140
+        "y": 187
       },
       "fieldConfig": {
         "defaults": {
@@ -6110,7 +7939,7 @@
     },
     {
       "type": "timeseries",
-      "id": 81,
+      "id": 99,
       "title": "Pool: active / idle / waiting",
       "description": "waiting > 0 means callers are queued for a connection \u2014 the pool is too small or queries too slow",
       "datasource": {
@@ -6121,7 +7950,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 140
+        "y": 187
       },
       "fieldConfig": {
         "defaults": {
@@ -6235,7 +8064,7 @@
     },
     {
       "type": "timeseries",
-      "id": 82,
+      "id": 100,
       "title": "Query latency p95 by service",
       "description": "",
       "datasource": {
@@ -6246,7 +8075,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 148
+        "y": 195
       },
       "fieldConfig": {
         "defaults": {
@@ -6314,7 +8143,7 @@
     },
     {
       "type": "timeseries",
-      "id": 83,
+      "id": 101,
       "title": "Query latency p95 by operation",
       "description": "",
       "datasource": {
@@ -6325,7 +8154,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 148
+        "y": 195
       },
       "fieldConfig": {
         "defaults": {
@@ -6393,7 +8222,7 @@
     },
     {
       "type": "timeseries",
-      "id": 84,
+      "id": 102,
       "title": "Queries / s by operation",
       "description": "",
       "datasource": {
@@ -6404,7 +8233,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 148
+        "y": 195
       },
       "fieldConfig": {
         "defaults": {
@@ -6498,7 +8327,7 @@
     },
     {
       "type": "timeseries",
-      "id": 85,
+      "id": 103,
       "title": "Slow queries",
       "description": "Counted by the services (DB_SLOW_QUERY_MS) and seen live on the server (pg_stat_activity)",
       "datasource": {
@@ -6509,7 +8338,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 156
+        "y": 203
       },
       "fieldConfig": {
         "defaults": {
@@ -6587,7 +8416,7 @@
     },
     {
       "type": "timeseries",
-      "id": 86,
+      "id": 104,
       "title": "Lock wait time",
       "description": "",
       "datasource": {
@@ -6598,7 +8427,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 156
+        "y": 203
       },
       "fieldConfig": {
         "defaults": {
@@ -6697,7 +8526,7 @@
     },
     {
       "type": "timeseries",
-      "id": 87,
+      "id": 105,
       "title": "Deadlocks, rollbacks & idle-in-transaction",
       "description": "",
       "datasource": {
@@ -6708,7 +8537,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 156
+        "y": 203
       },
       "fieldConfig": {
         "defaults": {
@@ -6827,7 +8656,7 @@
     },
     {
       "type": "timeseries",
-      "id": 88,
+      "id": 106,
       "title": "Transactions / s by database",
       "description": "",
       "datasource": {
@@ -6838,7 +8667,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 164
+        "y": 211
       },
       "fieldConfig": {
         "defaults": {
@@ -6906,7 +8735,7 @@
     },
     {
       "type": "timeseries",
-      "id": 89,
+      "id": 107,
       "title": "Transaction duration p95 by service",
       "description": "BEGIN \u2192 COMMIT/ROLLBACK as measured by the service",
       "datasource": {
@@ -6917,7 +8746,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 164
+        "y": 211
       },
       "fieldConfig": {
         "defaults": {
@@ -6985,7 +8814,7 @@
     },
     {
       "type": "timeseries",
-      "id": 90,
+      "id": 108,
       "title": "Row operations & cache hit ratio",
       "description": "",
       "datasource": {
@@ -6996,7 +8825,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 164
+        "y": 211
       },
       "fieldConfig": {
         "defaults": {
@@ -7128,20 +8957,20 @@
     },
     {
       "type": "row",
-      "id": 91,
+      "id": 109,
       "title": "5 \u00b7 Message Broker & Queue Monitoring",
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 172
+        "y": 219
       },
       "panels": []
     },
     {
       "type": "stat",
-      "id": 92,
+      "id": 110,
       "title": "Kafka consumer lag",
       "description": "",
       "datasource": {
@@ -7152,7 +8981,7 @@
         "h": 4,
         "w": 3,
         "x": 0,
-        "y": 173
+        "y": 220
       },
       "fieldConfig": {
         "defaults": {
@@ -7208,7 +9037,7 @@
     },
     {
       "type": "stat",
-      "id": 93,
+      "id": 111,
       "title": "Produced msg/s",
       "description": "",
       "datasource": {
@@ -7219,7 +9048,7 @@
         "h": 4,
         "w": 3,
         "x": 3,
-        "y": 173
+        "y": 220
       },
       "fieldConfig": {
         "defaults": {
@@ -7268,7 +9097,7 @@
     },
     {
       "type": "stat",
-      "id": 94,
+      "id": 112,
       "title": "Consumed msg/s",
       "description": "",
       "datasource": {
@@ -7279,7 +9108,7 @@
         "h": 4,
         "w": 3,
         "x": 6,
-        "y": 173
+        "y": 220
       },
       "fieldConfig": {
         "defaults": {
@@ -7328,7 +9157,7 @@
     },
     {
       "type": "stat",
-      "id": 95,
+      "id": 113,
       "title": "Redis queue backlog",
       "description": "Jobs not yet picked up (waiting + delayed + prioritized)",
       "datasource": {
@@ -7339,7 +9168,7 @@
         "h": 4,
         "w": 3,
         "x": 9,
-        "y": 173
+        "y": 220
       },
       "fieldConfig": {
         "defaults": {
@@ -7395,7 +9224,7 @@
     },
     {
       "type": "stat",
-      "id": 96,
+      "id": 114,
       "title": "Active jobs",
       "description": "",
       "datasource": {
@@ -7406,7 +9235,7 @@
         "h": 4,
         "w": 3,
         "x": 12,
-        "y": 173
+        "y": 220
       },
       "fieldConfig": {
         "defaults": {
@@ -7454,7 +9283,7 @@
     },
     {
       "type": "stat",
-      "id": 97,
+      "id": 115,
       "title": "Failed jobs",
       "description": "Jobs that gave up and sit in the failed set",
       "datasource": {
@@ -7465,7 +9294,7 @@
         "h": 4,
         "w": 3,
         "x": 15,
-        "y": 173
+        "y": 220
       },
       "fieldConfig": {
         "defaults": {
@@ -7521,7 +9350,7 @@
     },
     {
       "type": "stat",
-      "id": 98,
+      "id": 116,
       "title": "Retries (1h)",
       "description": "",
       "datasource": {
@@ -7532,7 +9361,7 @@
         "h": 4,
         "w": 3,
         "x": 18,
-        "y": 173
+        "y": 220
       },
       "fieldConfig": {
         "defaults": {
@@ -7589,7 +9418,7 @@
     },
     {
       "type": "stat",
-      "id": 99,
+      "id": 117,
       "title": "Outbox backlog",
       "description": "Events written to the outbox but not yet on Kafka",
       "datasource": {
@@ -7600,7 +9429,7 @@
         "h": 4,
         "w": 3,
         "x": 21,
-        "y": 173
+        "y": 220
       },
       "fieldConfig": {
         "defaults": {
@@ -7656,7 +9485,7 @@
     },
     {
       "type": "timeseries",
-      "id": 100,
+      "id": 118,
       "title": "Kafka consumer lag by group / topic",
       "description": "",
       "datasource": {
@@ -7667,7 +9496,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 177
+        "y": 224
       },
       "fieldConfig": {
         "defaults": {
@@ -7735,7 +9564,7 @@
     },
     {
       "type": "timeseries",
-      "id": 101,
+      "id": 119,
       "title": "Kafka messages produced / s by topic",
       "description": "",
       "datasource": {
@@ -7746,7 +9575,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 177
+        "y": 224
       },
       "fieldConfig": {
         "defaults": {
@@ -7814,7 +9643,7 @@
     },
     {
       "type": "timeseries",
-      "id": 102,
+      "id": 120,
       "title": "Kafka messages consumed / s by group",
       "description": "",
       "datasource": {
@@ -7825,7 +9654,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 177
+        "y": 224
       },
       "fieldConfig": {
         "defaults": {
@@ -7893,7 +9722,7 @@
     },
     {
       "type": "timeseries",
-      "id": 103,
+      "id": 121,
       "title": "Events handled by outcome",
       "description": "handled | duplicate (inbox dedupe) | retry | dlq",
       "datasource": {
@@ -7904,7 +9733,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 185
+        "y": 232
       },
       "fieldConfig": {
         "defaults": {
@@ -8018,7 +9847,7 @@
     },
     {
       "type": "timeseries",
-      "id": 104,
+      "id": 122,
       "title": "Outbox \u2192 Kafka",
       "description": "",
       "datasource": {
@@ -8029,7 +9858,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 185
+        "y": 232
       },
       "fieldConfig": {
         "defaults": {
@@ -8145,7 +9974,7 @@
     },
     {
       "type": "timeseries",
-      "id": 105,
+      "id": 123,
       "title": "Dead-letter topics (messages)",
       "description": "Total messages ever dead-lettered per service",
       "datasource": {
@@ -8156,7 +9985,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 185
+        "y": 232
       },
       "fieldConfig": {
         "defaults": {
@@ -8224,7 +10053,7 @@
     },
     {
       "type": "timeseries",
-      "id": 106,
+      "id": 124,
       "title": "Redis queue backlog by queue",
       "description": "",
       "datasource": {
@@ -8235,7 +10064,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 193
+        "y": 240
       },
       "fieldConfig": {
         "defaults": {
@@ -8303,7 +10132,7 @@
     },
     {
       "type": "timeseries",
-      "id": 107,
+      "id": 125,
       "title": "Active & waiting background jobs",
       "description": "",
       "datasource": {
@@ -8314,7 +10143,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 193
+        "y": 240
       },
       "fieldConfig": {
         "defaults": {
@@ -8423,7 +10252,7 @@
     },
     {
       "type": "timeseries",
-      "id": 108,
+      "id": 126,
       "title": "Failed jobs & retries",
       "description": "",
       "datasource": {
@@ -8434,7 +10263,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 193
+        "y": 240
       },
       "fieldConfig": {
         "defaults": {
@@ -8568,7 +10397,7 @@
     },
     {
       "type": "timeseries",
-      "id": 109,
+      "id": 127,
       "title": "Job throughput (completed / failed per s)",
       "description": "",
       "datasource": {
@@ -8579,7 +10408,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 201
+        "y": 248
       },
       "fieldConfig": {
         "defaults": {
@@ -8688,7 +10517,7 @@
     },
     {
       "type": "timeseries",
-      "id": 110,
+      "id": 128,
       "title": "Job duration p95",
       "description": "",
       "datasource": {
@@ -8699,7 +10528,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 201
+        "y": 248
       },
       "fieldConfig": {
         "defaults": {
@@ -8767,7 +10596,7 @@
     },
     {
       "type": "timeseries",
-      "id": 111,
+      "id": 129,
       "title": "Redis memory & clients",
       "description": "",
       "datasource": {
@@ -8778,7 +10607,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 201
+        "y": 248
       },
       "fieldConfig": {
         "defaults": {
@@ -8873,19 +10702,19 @@
     },
     {
       "type": "row",
-      "id": 112,
+      "id": 130,
       "title": "Business",
       "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 209
+        "y": 256
       },
       "panels": [
         {
           "type": "bargauge",
-          "id": 113,
+          "id": 131,
           "title": "Orders by status",
           "description": "",
           "datasource": {
@@ -8896,7 +10725,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 210
+            "y": 257
           },
           "fieldConfig": {
             "defaults": {
@@ -8947,7 +10776,7 @@
         },
         {
           "type": "bargauge",
-          "id": 114,
+          "id": 132,
           "title": "Background jobs by state",
           "description": "",
           "datasource": {
@@ -8958,7 +10787,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 210
+            "y": 257
           },
           "fieldConfig": {
             "defaults": {
@@ -9009,7 +10838,7 @@
         },
         {
           "type": "timeseries",
-          "id": 115,
+          "id": 133,
           "title": "Inventory",
           "description": "",
           "datasource": {
@@ -9020,7 +10849,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 210
+            "y": 257
           },
           "fieldConfig": {
             "defaults": {

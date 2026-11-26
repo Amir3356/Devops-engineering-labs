@@ -1,4 +1,5 @@
 import client from 'prom-client';
+import { recordLiveRequest, registerLiveGauge, startLivePush } from './livePush.js';
 
 /**
  * Prometheus metrics shared by every service (scraped at GET /metrics).
@@ -71,6 +72,18 @@ new client.Gauge({
 
 const trackedSockets = new WeakSet();
 
+// Plain counters mirrored for the 1-second Grafana Live push (prom-client gauge reads are async)
+let inFlightNow = 0;
+let connectionsNow = 0;
+registerLiveGauge('in_flight', () => inFlightNow);
+registerLiveGauge('connections', () => connectionsNow);
+registerLiveGauge('active_users_1m', () => {
+  const cutoff = Date.now() - ACTIVE_USER_WINDOWS['1m'];
+  let n = 0;
+  for (const seen of userLastSeen.values()) if (seen >= cutoff) n += 1;
+  return n;
+});
+
 // ---------- Event streaming ----------
 export const eventsConsumed = new client.Counter({
   name: 'events_consumed_total',
@@ -98,34 +111,46 @@ export const outboxPublishFailures = new client.Counter({
  */
 function routeLabel(req, res) {
   if (req.route?.path) return `${req.baseUrl || ''}${req.route.path}`;
+  // Handled inside a mounted router/proxy prefix (e.g. gateway router.use('/api/orders', …)):
+  // a downstream 404 ("order not found") is a real API response, not a random path
+  if (req.baseUrl) return req.baseUrl;
   if (res.statusCode === 404) return 'unmatched';
   const segments = (req.originalUrl || '').split('?')[0].split('/').filter(Boolean).slice(0, 2);
   return `/${segments.join('/')}`;
 }
 
 function httpMetricsMiddleware(req, res, next) {
-  if (req.path === '/metrics') return next();
+  // Monitoring traffic is not API traffic: Prometheus scrapes and health probes (every 15 s per
+  // service) would otherwise dominate throughput and drag latency averages down.
+  // Health-check latency is tracked by the blackbox exporter (probe_duration_seconds).
+  if (req.path === '/metrics' || req.path === '/health' || req.path.startsWith('/health/')) return next();
 
   const socket = req.socket;
   if (socket && !trackedSockets.has(socket)) {
     trackedSockets.add(socket);
     httpActiveConnections.inc();
-    socket.once('close', () => httpActiveConnections.dec());
+    connectionsNow += 1;
+    socket.once('close', () => {
+      httpActiveConnections.dec();
+      connectionsNow -= 1;
+    });
   }
 
   httpInFlight.inc();
+  inFlightNow += 1;
   let done = false;
   const release = () => {
     if (done) return;
     done = true;
     httpInFlight.dec();
+    inFlightNow -= 1;
   };
 
   const end = httpDuration.startTimer();
   res.on('finish', () => {
     release();
     const labels = { method: req.method, route: routeLabel(req, res), status: String(res.statusCode) };
-    end(labels);
+    recordLiveRequest(end(labels), res.statusCode);
     const size = Number(res.getHeader('content-length'));
     if (Number.isFinite(size)) httpResponseSize.observe(labels, size);
     if (req.user?.id != null) userLastSeen.set(String(req.user.id), Date.now());
@@ -144,6 +169,8 @@ export function initMetrics(app, serviceName) {
     registry.setDefaultLabels({ service: serviceName });
     client.collectDefaultMetrics({ register: registry });
     initialised = true;
+    // Real-time 1 s push to Grafana Live (no-op unless GRAFANA_LIVE_URL + GRAFANA_LIVE_TOKEN are set)
+    startLivePush(serviceName);
   }
   app.use(httpMetricsMiddleware);
   app.get('/metrics', async (req, res) => {

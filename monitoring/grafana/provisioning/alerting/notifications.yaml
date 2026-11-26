@@ -1,0 +1,40 @@
+# Where alerts go and how often.
+# Email goes through the same Gmail SMTP account the notification-service uses
+# (server/.env: SMTP_USER / SMTP_APP_PASSWORD) to ADMIN_EMAIL — both read from server/.env.
+# Grafana expands $VARS in this file; "$$" escapes a literal "$".
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: Admin email
+    receivers:
+      - uid: admin-email
+        type: email
+        settings:
+          addresses: $ADMIN_EMAIL
+          singleEmail: true
+          # e.g. "[FIRING:1] CRITICAL · Service down · order-service"
+          subject: '[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.severity | toUpper }} · {{ .CommonLabels.alertname }}{{ if .CommonLabels.service }} · {{ .CommonLabels.service }}{{ end }}'
+        disableResolveMessage: false
+
+policies:
+  - orgId: 1
+    receiver: Admin email
+    # One notification per alert + service; related instances are batched together
+    group_by: [grafana_folder, alertname, service]
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
+    routes:
+      # Critical: notify fast, remind every hour while it keeps firing
+      - receiver: Admin email
+        object_matchers:
+          - [severity, =, critical]
+        group_wait: 10s
+        group_interval: 2m
+        repeat_interval: 1h
+      # Warnings: batched, reminded every 4 hours
+      - receiver: Admin email
+        object_matchers:
+          - [severity, =, warning]
+        repeat_interval: 4h
