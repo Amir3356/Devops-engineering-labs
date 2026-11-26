@@ -8,12 +8,12 @@ import { initCache, cacheStatus } from '../utils/cache.js';
 
 initCache('inventory');
 import inventoryRoutes from './routes/inventory.routes.js';
-import { success } from '../utils/response.js';
 import pool from './config/db.js';
 import { startOutboxRelay, startWithRetry, onShutdown } from '../utils/events/index.js';
 import { startOrderConsumer } from './events/order.consumer.js';
 
 import { initMetrics, registerGaugeCollector } from '../utils/metrics.js';
+import { registerHealth, postgresCheck, redisCacheCheck, kafkaCheck } from '../utils/health.js';
 const app = express();
 
 // Prometheus: HTTP rate/errors/duration + Node runtime metrics at GET /metrics
@@ -32,15 +32,15 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check
-app.get('/health', (req, res) => {
-  return success(res, {
-    service: 'inventory-service',
-    status: 'UP',
-    cache: cacheStatus(),
-    port: config.PORT,
-    timestamp: new Date().toISOString()
-  }, 'Inventory Service is healthy');
+// Deep health check: GET /health (dependencies) and GET /health/live (process only)
+registerHealth(app, {
+  service: 'inventory-service',
+  checks: {
+    postgres: postgresCheck(pool),
+    redis: redisCacheCheck(),
+    kafka: kafkaCheck('inventory-service-health')
+  },
+  info: () => ({ port: config.PORT, cache: cacheStatus() })
 });
 
 // Mount Routes under standard path

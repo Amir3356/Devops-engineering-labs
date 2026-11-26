@@ -5,9 +5,10 @@ import cors from 'cors';
 import { corsOptions } from '../utils/cors.js';
 import config from './config/index.js';
 import purchaseRoutes from './routes/purchase.routes.js';
-import { success } from '../utils/response.js';
 
 import { initMetrics } from '../utils/metrics.js';
+import { registerHealth, postgresCheck } from '../utils/health.js';
+import pool from './config/db.js';
 const app = express();
 
 // Prometheus: HTTP rate/errors/duration + Node runtime metrics at GET /metrics
@@ -25,14 +26,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check
-app.get('/health', (req, res) => {
-  return success(res, {
-    service: 'purchase-service',
-    status: 'UP',
-    port: config.PORT,
-    timestamp: new Date().toISOString()
-  }, 'Purchase Service is healthy');
+// Deep health check: GET /health (dependencies) and GET /health/live (process only)
+registerHealth(app, {
+  service: 'purchase-service',
+  checks: {
+    postgres: postgresCheck(pool)
+  },
+  info: () => ({ port: config.PORT })
 });
 
 // Mount Routes

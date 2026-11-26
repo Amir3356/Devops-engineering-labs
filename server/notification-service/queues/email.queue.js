@@ -76,3 +76,8 @@ export async function retryFailedEmails() {
   await Promise.all(failed.map((job) => job.retry()));
   return failed.length;
 }
+
+/** The queue's Redis connection (for the health check), with the queue's default job options intact. */
+export function emailQueueClient() {
+  return emailQueue().client;
+}

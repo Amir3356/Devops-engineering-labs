@@ -70,7 +70,7 @@ export default function MonitoringView() {
           <AlertTriangle size={28} />
           <h3>Grafana isn&apos;t reachable at {GRAFANA_URL}</h3>
           <p>Start the monitoring stack, then reload:</p>
-          <code>docker compose up -d prometheus grafana postgres-exporter redis-exporter kafka-exporter</code>
+          <code>docker compose up -d prometheus grafana postgres-exporter redis-exporter kafka-exporter node-exporter cadvisor blackbox-exporter loki tempo alloy</code>
           <button type="button" className="monitoring-btn" onClick={reload}>
             <RefreshCw size={15} /> Try again
           </button>

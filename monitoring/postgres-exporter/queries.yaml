@@ -1,0 +1,50 @@
+# Extra PostgreSQL metrics for Grafana → Database Monitoring
+# (loaded by postgres-exporter via PG_EXPORTER_EXTEND_QUERY_PATH)
+
+# Sessions blocked on a lock right now, and how long the oldest one has waited
+pg_lock_waits:
+  query: |
+    SELECT d.datname,
+           COUNT(a.pid) AS waiting,
+           COALESCE(MAX(EXTRACT(EPOCH FROM (now() - a.state_change))), 0) AS max_wait_seconds
+      FROM pg_database d
+      LEFT JOIN pg_stat_activity a
+        ON a.datname = d.datname AND a.wait_event_type = 'Lock'
+     WHERE d.datname LIKE '%\_db'
+     GROUP BY d.datname
+  metrics:
+    - datname:
+        usage: "LABEL"
+        description: "Database name"
+    - waiting:
+        usage: "GAUGE"
+        description: "Sessions currently waiting on a lock"
+    - max_wait_seconds:
+        usage: "GAUGE"
+        description: "Longest current lock wait in seconds"
+
+# Statements running longer than 1s right now (slow queries seen from the server side)
+pg_long_running_queries:
+  query: |
+    SELECT d.datname,
+           COUNT(a.pid) FILTER (WHERE a.state = 'active' AND now() - a.query_start > interval '1 second') AS count,
+           COALESCE(MAX(EXTRACT(EPOCH FROM (now() - a.query_start))) FILTER (WHERE a.state = 'active'), 0) AS max_seconds,
+           COUNT(a.pid) FILTER (WHERE a.state = 'idle in transaction') AS idle_in_transaction
+      FROM pg_database d
+      LEFT JOIN pg_stat_activity a
+        ON a.datname = d.datname AND a.pid <> pg_backend_pid()
+     WHERE d.datname LIKE '%\_db'
+     GROUP BY d.datname
+  metrics:
+    - datname:
+        usage: "LABEL"
+        description: "Database name"
+    - count:
+        usage: "GAUGE"
+        description: "Active statements running for more than 1 second"
+    - max_seconds:
+        usage: "GAUGE"
+        description: "Runtime of the longest active statement in seconds"
+    - idle_in_transaction:
+        usage: "GAUGE"
+        description: "Sessions idle inside an open transaction (hold locks)"

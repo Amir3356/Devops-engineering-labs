@@ -1,5 +1,10 @@
 apiVersion: 1
 
+# Metrics (Prometheus) · Logs (Loki) · Traces (Tempo) — cross-linked:
+#   log line with trace_id=…  →  trace in Tempo
+#   trace span                →  that service's logs in Loki (same trace id)
+#   trace                     →  service graph / RED metrics (Tempo metrics-generator → Prometheus)
+# ("$$" escapes "$" in provisioning files, so Grafana receives ${__value.raw} etc.)
 datasources:
   - name: Prometheus
     uid: prometheus
@@ -10,3 +15,61 @@ datasources:
     editable: false
     jsonData:
       timeInterval: 10s
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo
+
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        # trace_id is structured metadata extracted by Alloy (monitoring/alloy/config.alloy)
+        - name: TraceID
+          matcherType: label
+          matcherRegex: trace_id
+          datasourceUid: tempo
+          url: '$${__value.raw}'
+          urlDisplayLabel: View trace
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    editable: false
+    jsonData:
+      nodeGraph:
+        enabled: true
+      serviceMap:
+        datasourceUid: prometheus
+      search:
+        hide: false
+      traceQuery:
+        timeShiftEnabled: true
+        spanStartTimeShift: -10m
+        spanEndTimeShift: 10m
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: -2m
+        spanEndTimeShift: 2m
+        customQuery: true
+        query: '{service="$${__span.tags["service.name"]}"} | trace_id="$${__trace.traceId}"'
+      tracesToMetrics:
+        datasourceUid: prometheus
+        spanStartTimeShift: -5m
+        spanEndTimeShift: 5m
+        tags:
+          - key: service.name
+            value: service
+        queries:
+          - name: Request rate
+            query: 'sum(rate(http_request_duration_seconds_count{$$__tags}[1m]))'
+          - name: p95 latency
+            query: 'histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{$$__tags}[5m])))'
+      lokiSearch:
+        datasourceUid: loki

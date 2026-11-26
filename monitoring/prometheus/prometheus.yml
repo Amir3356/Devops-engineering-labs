@@ -55,6 +55,122 @@ scrape_configs:
     static_configs:
       - targets: [kafka-exporter:9308]
 
+  # Host machine: CPU, memory, disk usage, disk I/O
+  - job_name: node
+    static_configs:
+      - targets: [node-exporter:9100]
+
+  # Containers: per-service CPU / memory / I/O (label: container_label_com_docker_compose_service)
+  - job_name: cadvisor
+    static_configs:
+      - targets: [cadvisor:8080]
+    metric_relabel_configs:
+      # Keep only real containers (drop the cgroup hierarchy roots) and give them a short label
+      - source_labels: [container_label_com_docker_compose_service]
+        regex: '(.+)'
+        target_label: container
+      - source_labels: [container]
+        regex: ''
+        action: drop
+
+  # ---------------------------------------------------------------- Health checks (blackbox)
+  # Deep health check of every microservice: GET /health must answer 200 with UP or DEGRADED.
+  # probe_success{service="…"} = 1 healthy / 0 failed; probe_duration_seconds = check latency.
+  - job_name: health-services
+    scrape_interval: 15s
+    metrics_path: /probe
+    params:
+      module: [http_health]
+    static_configs:
+      - targets:
+          - http://api-gateway:5000/health
+          - http://auth-service:5008/health
+          - http://user-service:5001/health
+          - http://product-category-service:5002/health
+          - http://purchase-service:5003/health
+          - http://order-service:5004/health
+          - http://sale-service:5005/health
+          - http://inventory-service:5006/health
+          - http://notification-service:5007/health
+          - http://policy-service:5009/health
+        labels:
+          tier: application
+    relabel_configs: &blackbox_relabel
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      # service = host part of the target (order-service, postgres, …)
+      - source_labels: [__param_target]
+        regex: '(?:[a-z]+://)?([^:/]+).*'
+        target_label: service
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # Infrastructure: can each dependency be reached at all?
+  - job_name: health-infra-tcp
+    scrape_interval: 15s
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
+    static_configs:
+      # critical: the services cannot work without it → system CRITICAL when down
+      - targets: [postgres:5432]
+        labels:
+          tier: infrastructure
+          critical: "true"
+      # non-critical: the outbox keeps events until Kafka is back → system DEGRADED
+      - targets: [kafka:9092]
+        labels:
+          tier: infrastructure
+          critical: "false"
+    relabel_configs: *blackbox_relabel
+
+  - job_name: health-infra-redis
+    scrape_interval: 15s
+    metrics_path: /probe
+    params:
+      module: [redis_ping]
+    static_configs:
+      # cache falls back to PostgreSQL; queued jobs wait → DEGRADED when down
+      - targets: [redis:6379, redis-queue:6379]
+        labels:
+          tier: infrastructure
+          critical: "false"
+    relabel_configs: *blackbox_relabel
+
+  - job_name: health-infra-http
+    scrape_interval: 15s
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://minio:9000/minio/health/live
+        labels:
+          tier: infrastructure
+          critical: "false"
+      - targets:
+          - http://prometheus:9090/-/ready
+          - http://grafana:3000/api/health
+          - http://loki:3100/ready
+          - http://tempo:3200/ready
+          - http://alloy:12345/-/ready
+        labels:
+          tier: observability
+    relabel_configs: *blackbox_relabel
+
+  # Observability stack's own metrics
+  - job_name: loki
+    static_configs:
+      - targets: [loki:3100]
+  - job_name: tempo
+    static_configs:
+      - targets: [tempo:3200]
+  - job_name: alloy
+    static_configs:
+      - targets: [alloy:12345]
+
   - job_name: prometheus
     static_configs:
       - targets: [localhost:9090]

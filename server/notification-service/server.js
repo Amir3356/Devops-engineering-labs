@@ -7,14 +7,14 @@ import config from './config/index.js';
 import notificationRoutes from './routes/notification.routes.js';
 import internalRoutes from './routes/internal.routes.js';
 import { verifyEmailTransport } from './services/email.service.js';
-import { success } from '../utils/response.js';
 import pool from './config/db.js';
 import { startReceiptConsumer } from './events/receipt.consumer.js';
 import { startWithRetry, onShutdown } from '../utils/events/index.js';
-import { startEmailWorker, emailQueueStats } from './queues/email.queue.js';
+import { startEmailWorker, emailQueueClient } from './queues/email.queue.js';
 import { closeQueues } from '../utils/queue.js';
 
-import { initMetrics, registerGaugeCollector } from '../utils/metrics.js';
+import { initMetrics } from '../utils/metrics.js';
+import { registerHealth, postgresCheck, kafkaCheck, redisPingCheck } from '../utils/health.js';
 const app = express();
 
 // Prometheus: HTTP rate/errors/duration + Node runtime metrics at GET /metrics
@@ -33,14 +33,15 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check
-app.get('/health', (req, res) => {
-  return success(res, {
-    service: 'notification-service',
-    status: 'UP',
-    port: config.PORT,
-    timestamp: new Date().toISOString()
-  }, 'Notification Service is healthy');
+// Deep health check: GET /health (dependencies) and GET /health/live (process only)
+registerHealth(app, {
+  service: 'notification-service',
+  checks: {
+    postgres: postgresCheck(pool),
+    kafka: kafkaCheck('notification-service-health'),
+    queueRedis: redisPingCheck(() => emailQueueClient())
+  },
+  info: () => ({ port: config.PORT })
 });
 
 // Mount Routes under standard path
@@ -68,13 +69,7 @@ if (isMainModule) {
     console.log(`   Health check: http://localhost:${PORT}/health`);
     console.log(`======================================================\n`);
   });
-  registerGaugeCollector({
-    name: 'email_queue_jobs',
-    help: 'Jobs in the Redis "emails" queue by state',
-    labelNames: ['state'],
-    read: async () =>
-      Object.entries(await emailQueueStats()).map(([state, value]) => ({ labels: { state }, value }))
-  });
+  // Queue depth / retries / failures are exported generically by utils/queue.js (bullmq_* metrics)
   // Redis queue worker: sends receipt emails (retries, backoff, rate limit, failed set)
   const emailWorker = startEmailWorker();
   onShutdown(() => emailWorker.close());

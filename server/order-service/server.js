@@ -5,12 +5,12 @@ import cors from 'cors';
 import { corsOptions } from '../utils/cors.js';
 import config from './config/index.js';
 import orderRoutes from './routes/order.routes.js';
-import { success } from '../utils/response.js';
 import pool from './config/db.js';
 import { startOutboxRelay, startWithRetry, onShutdown } from '../utils/events/index.js';
 import { startInventoryConsumer } from './events/inventory.consumer.js';
 
 import { initMetrics, registerGaugeCollector } from '../utils/metrics.js';
+import { registerHealth, postgresCheck, kafkaCheck } from '../utils/health.js';
 const app = express();
 
 // Prometheus: HTTP rate/errors/duration + Node runtime metrics at GET /metrics
@@ -29,14 +29,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check
-app.get('/health', (req, res) => {
-  return success(res, {
-    service: 'order-service',
-    status: 'UP',
-    port: config.PORT,
-    timestamp: new Date().toISOString()
-  }, 'Order Service is healthy');
+// Deep health check: GET /health (dependencies) and GET /health/live (process only)
+registerHealth(app, {
+  service: 'order-service',
+  checks: {
+    postgres: postgresCheck(pool),
+    kafka: kafkaCheck('order-service-health')
+  },
+  info: () => ({ port: config.PORT })
 });
 
 // Mount Routes under standard path

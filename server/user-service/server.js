@@ -8,9 +8,10 @@ import { initCache, cacheStatus } from '../utils/cache.js';
 
 initCache('user');
 import userRoutes from './routes/user.routes.js';
-import { success } from '../utils/response.js';
 
 import { initMetrics } from '../utils/metrics.js';
+import { registerHealth, postgresCheck, redisCacheCheck } from '../utils/health.js';
+import pool from './config/db.js';
 const app = express();
 
 // Prometheus: HTTP rate/errors/duration + Node runtime metrics at GET /metrics
@@ -29,15 +30,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check
-app.get('/health', (req, res) => {
-  return success(res, {
-    service: 'user-service',
-    status: 'UP',
-    cache: cacheStatus(),
-    port: config.PORT,
-    timestamp: new Date().toISOString()
-  }, 'User Service is healthy');
+// Deep health check: GET /health (dependencies) and GET /health/live (process only)
+registerHealth(app, {
+  service: 'user-service',
+  checks: {
+    postgres: postgresCheck(pool),
+    redis: redisCacheCheck()
+  },
+  info: () => ({ port: config.PORT, cache: cacheStatus() })
 });
 
 // Mount Routes under standard microservice path

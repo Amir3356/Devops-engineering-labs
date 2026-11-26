@@ -1,4 +1,5 @@
 import { WebSocketServer, WebSocket } from 'ws';
+import { registerGaugeCollector } from '../utils/metrics.js';
 
 /**
  * Real-time channel for clients (ws://<gateway>/ws).
@@ -37,6 +38,12 @@ export function attachRealtime(httpServer) {
     }
   }, HEARTBEAT_MS);
   wss.on('close', () => clearInterval(heartbeat));
+
+  registerGaugeCollector({
+    name: 'websocket_connections',
+    help: 'Open real-time WebSocket clients on the gateway',
+    read: () => [{ value: wss ? wss.clients.size : 0 }]
+  });
 
   console.log(`🔌 WebSocket channel ready at ${WS_PATH}`);
   return wss;

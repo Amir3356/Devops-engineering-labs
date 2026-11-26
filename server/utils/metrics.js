@@ -22,6 +22,55 @@ const httpDuration = new client.Histogram({
   registers: [registry]
 });
 
+const httpResponseSize = new client.Histogram({
+  name: 'http_response_size_bytes',
+  help: 'HTTP response body size (Content-Length when set) — used for throughput in bytes/s',
+  labelNames: ['method', 'route', 'status'],
+  buckets: [100, 1000, 10000, 100000, 1000000, 10000000],
+  registers: [registry]
+});
+
+// ---------- Concurrency ----------
+const httpInFlight = new client.Gauge({
+  name: 'http_requests_in_flight',
+  help: 'HTTP requests currently being processed (concurrent requests)',
+  registers: [registry]
+});
+
+const httpActiveConnections = new client.Gauge({
+  name: 'http_active_connections',
+  help: 'Open client TCP connections that have sent at least one HTTP request (keep-alive included)',
+  registers: [registry]
+});
+
+// Authenticated users seen recently (req.user.id set by the auth middleware). Bounded by the
+// number of real users active inside the largest window; entries older than that are pruned.
+const ACTIVE_USER_WINDOWS = { '1m': 60_000, '5m': 300_000, '15m': 900_000 };
+const MAX_WINDOW_MS = Math.max(...Object.values(ACTIVE_USER_WINDOWS));
+const userLastSeen = new Map();
+
+new client.Gauge({
+  name: 'active_users',
+  help: 'Distinct authenticated users with at least one request inside the window',
+  labelNames: ['window'],
+  registers: [registry],
+  collect() {
+    const now = Date.now();
+    const counts = Object.fromEntries(Object.keys(ACTIVE_USER_WINDOWS).map((w) => [w, 0]));
+    for (const [id, seen] of userLastSeen) {
+      const age = now - seen;
+      if (age > MAX_WINDOW_MS) {
+        userLastSeen.delete(id);
+        continue;
+      }
+      for (const [w, ms] of Object.entries(ACTIVE_USER_WINDOWS)) if (age <= ms) counts[w] += 1;
+    }
+    for (const [w, n] of Object.entries(counts)) this.set({ window: w }, n);
+  }
+});
+
+const trackedSockets = new WeakSet();
+
 // ---------- Event streaming ----------
 export const eventsConsumed = new client.Counter({
   name: 'events_consumed_total',
@@ -56,10 +105,33 @@ function routeLabel(req, res) {
 
 function httpMetricsMiddleware(req, res, next) {
   if (req.path === '/metrics') return next();
+
+  const socket = req.socket;
+  if (socket && !trackedSockets.has(socket)) {
+    trackedSockets.add(socket);
+    httpActiveConnections.inc();
+    socket.once('close', () => httpActiveConnections.dec());
+  }
+
+  httpInFlight.inc();
+  let done = false;
+  const release = () => {
+    if (done) return;
+    done = true;
+    httpInFlight.dec();
+  };
+
   const end = httpDuration.startTimer();
   res.on('finish', () => {
-    end({ method: req.method, route: routeLabel(req, res), status: String(res.statusCode) });
+    release();
+    const labels = { method: req.method, route: routeLabel(req, res), status: String(res.statusCode) };
+    end(labels);
+    const size = Number(res.getHeader('content-length'));
+    if (Number.isFinite(size)) httpResponseSize.observe(labels, size);
+    if (req.user?.id != null) userLastSeen.set(String(req.user.id), Date.now());
   });
+  // Client aborted before the response finished: still leave the in-flight count
+  res.on('close', release);
   next();
 }
 

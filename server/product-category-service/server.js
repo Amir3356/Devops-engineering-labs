@@ -8,9 +8,10 @@ import { initCache, cacheStatus } from '../utils/cache.js';
 
 initCache('product');
 import productRoutes from './routes/product.routes.js';
-import { success } from '../utils/response.js';
 
 import { initMetrics } from '../utils/metrics.js';
+import { registerHealth, postgresCheck, redisCacheCheck, httpCheck } from '../utils/health.js';
+import pool from './config/db.js';
 const app = express();
 
 // Prometheus: HTTP rate/errors/duration + Node runtime metrics at GET /metrics
@@ -29,15 +30,15 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check
-app.get('/health', (req, res) => {
-  return success(res, {
-    service: 'product-category-service',
-    status: 'UP',
-    cache: cacheStatus(),
-    port: config.PORT,
-    timestamp: new Date().toISOString()
-  }, 'Product & Category Service is healthy');
+// Deep health check: GET /health (dependencies) and GET /health/live (process only)
+registerHealth(app, {
+  service: 'product-category-service',
+  checks: {
+    postgres: postgresCheck(pool),
+    redis: redisCacheCheck(),
+    minio: httpCheck(`http://${process.env.MINIO_ENDPOINT || 'localhost'}:${process.env.MINIO_PORT || 9000}/minio/health/live`)
+  },
+  info: () => ({ port: config.PORT, cache: cacheStatus() })
 });
 
 // Mount Routes under standard microservice path

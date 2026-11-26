@@ -5,11 +5,11 @@ import cors from 'cors';
 import { corsOptions } from '../utils/cors.js';
 import config from './config/index.js';
 import saleRoutes from './routes/sale.routes.js';
-import { success } from '../utils/response.js';
 import pool from './config/db.js';
 import { startOutboxRelay, onShutdown } from '../utils/events/index.js';
 
 import { initMetrics, registerGaugeCollector } from '../utils/metrics.js';
+import { registerHealth, postgresCheck, kafkaCheck } from '../utils/health.js';
 const app = express();
 
 // Prometheus: HTTP rate/errors/duration + Node runtime metrics at GET /metrics
@@ -27,14 +27,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check
-app.get('/health', (req, res) => {
-  return success(res, {
-    service: 'sale-service',
-    status: 'UP',
-    port: config.PORT,
-    timestamp: new Date().toISOString()
-  }, 'Sale Service is healthy');
+// Deep health check: GET /health (dependencies) and GET /health/live (process only)
+registerHealth(app, {
+  service: 'sale-service',
+  checks: {
+    postgres: postgresCheck(pool),
+    kafka: kafkaCheck('sale-service-health')
+  },
+  info: () => ({ port: config.PORT })
 });
 
 // Mount Routes

@@ -1,3 +1,9 @@
+# Tracing for every Node service: utils/tracing.js loads before the service code and sends
+# OpenTelemetry spans to Grafana Alloy (→ Tempo). Unset OTEL_EXPORTER_OTLP_ENDPOINT to disable.
+x-otel-env: &otel-env
+  NODE_OPTIONS: --import /app/utils/tracing.js
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+
 services:
   # ========================================================
   # 1. PostgreSQL Database Server (Isolated DBs)
@@ -135,6 +141,7 @@ services:
     env_file:
       - ./server/.env
     environment:
+      <<: *otel-env
       PORT: 5008
       AUTH_DB_URL: postgresql://postgres:postgres@postgres:5432/auth_db
       REDIS_URL: redis://redis:6379
@@ -167,6 +174,7 @@ services:
     env_file:
       - ./server/.env
     environment:
+      <<: *otel-env
       PORT: 5001
       USER_DB_URL: postgresql://postgres:postgres@postgres:5432/user_db
       REDIS_URL: redis://redis:6379
@@ -195,6 +203,7 @@ services:
     container_name: product-category-service
     restart: unless-stopped
     environment:
+      <<: *otel-env
       PORT: 5002
       PRODUCT_DB_URL: postgresql://postgres:postgres@postgres:5432/product_db
       REDIS_URL: redis://redis:6379
@@ -235,6 +244,7 @@ services:
     container_name: purchase-service
     restart: unless-stopped
     environment:
+      <<: *otel-env
       PORT: 5003
       PURCHASE_DB_URL: postgresql://postgres:postgres@postgres:5432/purchase_db
       JWT_SECRET: ecommerce-microservices-secret-key-2026
@@ -259,6 +269,7 @@ services:
     container_name: order-service
     restart: unless-stopped
     environment:
+      <<: *otel-env
       PORT: 5004
       ORDER_DB_URL: postgresql://postgres:postgres@postgres:5432/order_db
       KAFKA_BROKERS: kafka:9092
@@ -286,6 +297,7 @@ services:
     container_name: sale-service
     restart: unless-stopped
     environment:
+      <<: *otel-env
       PORT: 5005
       SALE_DB_URL: postgresql://postgres:postgres@postgres:5432/sale_db
       INVENTORY_SERVICE_URL: http://inventory-service:5006
@@ -314,6 +326,7 @@ services:
     container_name: inventory-service
     restart: unless-stopped
     environment:
+      <<: *otel-env
       PORT: 5006
       INVENTORY_DB_URL: postgresql://postgres:postgres@postgres:5432/inventory_db
       REDIS_URL: redis://redis:6379
@@ -348,6 +361,7 @@ services:
     env_file:
       - ./server/.env
     environment:
+      <<: *otel-env
       PORT: 5007
       NOTIFICATION_DB_URL: postgresql://postgres:postgres@postgres:5432/notification_db
       KAFKA_BROKERS: kafka:9092
@@ -378,6 +392,7 @@ services:
     container_name: policy-service
     restart: unless-stopped
     environment:
+      <<: *otel-env
       PORT: 5009
       POLICY_DB_URL: postgresql://postgres:postgres@postgres:5432/policy_db
       REDIS_URL: redis://redis:6379
@@ -406,6 +421,7 @@ services:
     container_name: api-gateway
     restart: unless-stopped
     environment:
+      <<: *otel-env
       PORT: 5000
       KAFKA_BROKERS: kafka:9092
       JWT_SECRET: ecommerce-microservices-secret-key-2026
@@ -489,6 +505,9 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=7d
+      # Tempo's metrics-generator writes the service graph + span metrics here
+      - --web.enable-remote-write-receiver
+      - --enable-feature=exemplar-storage
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -522,6 +541,8 @@ services:
       - "3001:3000"   # host 3000 is the Vite dev server
     depends_on:
       - prometheus
+      - loki
+      - tempo
     networks:
       - ecommerce-net
 
@@ -531,6 +552,10 @@ services:
     restart: unless-stopped
     environment:
       DATA_SOURCE_NAME: postgresql://postgres:postgres@postgres:5432/postgres?sslmode=disable
+      # Lock waits + long-running queries (Grafana → Database Monitoring)
+      PG_EXPORTER_EXTEND_QUERY_PATH: /etc/postgres-exporter/queries.yaml
+    volumes:
+      - ./monitoring/postgres-exporter/queries.yaml:/etc/postgres-exporter/queries.yaml:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -555,6 +580,112 @@ services:
     networks:
       - ecommerce-net
 
+  # Host CPU / RAM / disk usage / disk I/O (Grafana → System Resource Monitoring)
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: node-exporter
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+|var/lib/containers/.+)($$|/)
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - ecommerce-net
+
+  # Per-container CPU / memory / disk I/O (one series per docker-compose service)
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.55.1
+    container_name: cadvisor
+    restart: unless-stopped
+    privileged: true
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=10s
+      - --store_container_labels=false
+      - --whitelisted_container_labels=com.docker.compose.service
+      - --disable_metrics=percpu,sched,tcp,udp,hugetlb,referenced_memory,cpu_topology,resctrl,process
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - ecommerce-net
+
+  # ========================================================
+  # 12. Health probes: every service's GET /health + infrastructure ports (Prometheus "probe_*")
+  # ========================================================
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.25.0
+    container_name: blackbox-exporter
+    restart: unless-stopped
+    command: ["--config.file=/etc/blackbox/blackbox.yml"]
+    volumes:
+      - ./monitoring/blackbox/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    networks:
+      - ecommerce-net
+
+  # ========================================================
+  # 13. Logs + traces: Loki (logs) · Tempo (traces) · Alloy (collector for both)
+  #     Grafana → Explore → Loki / Tempo, or the "Logs & Traces" dashboard
+  # ========================================================
+  loki:
+    image: grafana/loki:3.5.5
+    container_name: loki
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ./monitoring/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - ecommerce-net
+
+  tempo:
+    image: grafana/tempo:2.8.2
+    container_name: tempo
+    restart: unless-stopped
+    user: "0"   # writes to the named volume
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    volumes:
+      - ./monitoring/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"
+    depends_on:
+      - prometheus
+    networks:
+      - ecommerce-net
+
+  # Collects every container's stdout (docker socket) → Loki, and OTLP traces → Tempo
+  alloy:
+    image: grafana/alloy:v1.10.2
+    container_name: alloy
+    restart: unless-stopped
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy/data
+    ports:
+      - "12345:12345"   # Alloy UI (pipeline debugging)
+      - "4318:4318"     # OTLP/HTTP — lets services run from the host (npm run …) send traces too
+    depends_on:
+      - loki
+      - tempo
+    networks:
+      - ecommerce-net
+
 networks:
   ecommerce-net:
     driver: bridge
@@ -571,4 +702,10 @@ volumes:
   prometheus_data:
     driver: local
   grafana_data:
+    driver: local
+  loki_data:
+    driver: local
+  tempo_data:
+    driver: local
+  alloy_data:
     driver: local

@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import axios from 'axios';
 import { corsOptions } from '../utils/cors.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -10,10 +9,10 @@ import routes from './routes/index.js';
 import { attachRealtime } from './realtime.js';
 import { startRealtimeConsumer, stopRealtimeConsumer } from './events.js';
 import { startWithRetry, onShutdown } from '../utils/events/index.js';
-import { success } from '../utils/response.js';
 import { requestLogger, rateLimiter, rateLimitStatus, notFoundHandler, errorHandler } from './middleware/index.js';
 
 import { initMetrics } from '../utils/metrics.js';
+import { registerHealth, httpCheck } from '../utils/health.js';
 const app = express();
 
 // Prometheus: HTTP rate/errors/duration + Node runtime metrics at GET /metrics
@@ -33,24 +32,23 @@ app.use(requestLogger);
 app.use(rateLimiter);
 
 // 5. Root & Health Check Endpoint
-app.get('/health', async (req, res) => {
-  const serviceStatuses = {};
-
-  for (const [name, url] of Object.entries(config.SERVICES)) {
-    try {
-      const response = await axios.get(`${url}/health`, { timeout: 1000 });
-      serviceStatuses[name.toLowerCase()] = response.status === 200 ? 'HEALTHY' : 'DEGRADED';
-    } catch {
-      serviceStatuses[name.toLowerCase()] = 'OFFLINE';
-    }
-  }
-
-  return success(res, {
-    gateway: 'HEALTHY',
-    rateLimiting: rateLimitStatus(),
-    timestamp: new Date().toISOString(),
-    services: serviceStatuses
-  }, 'API Gateway is operational');
+// Deep health check: every downstream service + Redis (rate limiting / cache).
+// A downstream outage makes the gateway DEGRADED, not DOWN: other routes keep working.
+registerHealth(app, {
+  service: 'api-gateway',
+  checks: {
+    // Rate limiting falls back to in-memory counters while Redis is down → non-critical
+    redis: {
+      critical: false,
+      run: () => {
+        if (!rateLimitStatus().connected) throw new Error('Redis disconnected (rate limiting is in-memory)');
+      }
+    },
+    ...Object.fromEntries(
+      Object.entries(config.SERVICES).map(([name, url]) => [name.toLowerCase(), httpCheck(`${url}/health`)])
+    )
+  },
+  info: () => ({ rateLimiting: rateLimitStatus() })
 });
 
 // 6. Mount Central Microservice Routes
