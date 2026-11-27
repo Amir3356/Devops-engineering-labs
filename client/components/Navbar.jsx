@@ -1,6 +1,7 @@
 import { useAuth } from '../context/AuthContext';
 import { Can } from '../context/AbilityContext';
 import { useNavigate, useLocation } from 'react-router-dom';
+import NotificationBell from './NotificationBell';
 import { ShoppingBag, User, LogOut, ShieldCheck, ListOrdered, LayoutDashboard, Compass } from 'lucide-react';
 
 export default function Navbar() {
@@ -34,6 +35,13 @@ export default function Navbar() {
               <ListOrdered size={16} />
               My Orders
             </button>
+          </Can>
+
+          <Can I="read" a="Notification">
+            <NotificationBell
+              active={currentPath === '/notifications'}
+              onClick={() => navigate('/notifications')}
+            />
           </Can>
 
           <Can I="manage" a="Profile">

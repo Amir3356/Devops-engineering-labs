@@ -26,6 +26,16 @@
   },
   "links": [
     {
+      "title": "Capacity & Concurrent Users",
+      "type": "link",
+      "icon": "info",
+      "url": "/d/nexuscommerce-capacity/nexuscommerce-capacity",
+      "keepTime": false,
+      "includeVars": false,
+      "targetBlank": false,
+      "tooltip": "How many concurrent users the system can handle (load tests)"
+    },
+    {
       "title": "Live (1 s)",
       "type": "link",
       "icon": "bolt",

@@ -9,6 +9,7 @@ import orderService from '../../services/order.service';
 import { subscribeRealtime } from '../../services/realtime.service';
 import ProductDiscoverySidebar from './ProductDiscoverySidebar';
 import OrderHistory from '../orders/OrderHistory';
+import NotificationsPage from '../../pages/NotificationsPage';
 
 import {
   ShoppingCart,
@@ -35,7 +36,7 @@ export default function CustomerDashboard() {
   // State initialized purely from live data
   const [products, setProducts] = useState([]);
   const [availableCategories, setAvailableCategories] = useState(['All']);
-  const [activeTab, setActiveTab] = useState('discovery'); // 'discovery' | 'orders'
+  const [activeTab, setActiveTab] = useState('discovery'); // 'discovery' | 'orders' | 'notifications'
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -361,11 +362,18 @@ export default function CustomerDashboard() {
               <OrderHistory />
             </div>
           )}
+
+          {/* TAB 3: NOTIFICATIONS (live over the WebSocket) */}
+          {activeTab === 'notifications' && (
+            <div className="admin-view-content">
+              <NotificationsPage />
+            </div>
+          )}
         </main>
       </div>
 
       {/* Floating Cart Button when items in cart (hidden on the My Orders tab) */}
-      {cartCount > 0 && activeTab !== 'orders' && (
+      {cartCount > 0 && activeTab === 'discovery' && (
         <button
           type="button"
           className="floating-cart-pill"

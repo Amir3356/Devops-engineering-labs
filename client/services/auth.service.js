@@ -1,4 +1,5 @@
 import { loginApi, registerApi, logoutApi, getProfileApi, updateProfileApi } from '../api/auth.api';
+import { refreshRealtimeAuth } from './realtime.service';
 
 const TOKEN_KEY = 'ecommerce_token';
 const USER_KEY = 'ecommerce_user';
@@ -13,10 +14,12 @@ class AuthService {
 
   setToken(token) {
     localStorage.setItem(TOKEN_KEY, token);
+    refreshRealtimeAuth(); // the WebSocket now receives this user's notifications
   }
 
   removeToken() {
     localStorage.removeItem(TOKEN_KEY);
+    refreshRealtimeAuth(); // stop delivering the previous user's notifications
   }
 
   getUser() {

@@ -8,10 +8,11 @@ import notificationRoutes from './routes/notification.routes.js';
 import internalRoutes from './routes/internal.routes.js';
 import { verifyEmailTransport } from './services/email.service.js';
 import pool from './config/db.js';
-import { startReceiptConsumer } from './events/receipt.consumer.js';
+import { startNotificationConsumer } from './events/notification.consumer.js';
 import { startWithRetry, onShutdown } from '../utils/events/index.js';
 import { startEmailWorker, emailQueueClient } from './queues/email.queue.js';
 import { closeQueues } from '../utils/queue.js';
+import { closePublisher } from './realtime/publisher.js';
 
 import { initMetrics } from '../utils/metrics.js';
 import { registerHealth, postgresCheck, kafkaCheck, redisPingCheck } from '../utils/health.js';
@@ -74,8 +75,9 @@ if (isMainModule) {
   const emailWorker = startEmailWorker();
   onShutdown(() => emailWorker.close());
   onShutdown(() => closeQueues());
-  // Kafka consumer: OrderConfirmed / SaleRecorded → email jobs (deduplicated, DLQ on give-up)
-  startWithRetry('Notification Consumer', () => startReceiptConsumer(pool)).then((consumer) =>
+  onShutdown(() => closePublisher());
+  // Kafka consumer: order/sale events → in-app notifications (+ real-time push) and receipt emails
+  startWithRetry('Notification Consumer', () => startNotificationConsumer(pool)).then((consumer) =>
     onShutdown(() => consumer.disconnect())
   );
 }

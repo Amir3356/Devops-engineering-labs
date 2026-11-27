@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { createClient } from 'redis';
 import { error } from '../../utils/response.js';
 import config from '../config/index.js';
@@ -81,6 +82,28 @@ function memoryRateLimit(key, windowSeconds, maxRequests) {
 }
 
 /**
+ * Load tests (loadtest/run.sh) send every virtual user from one machine, which a per-IP limit
+ * would throttle long before the system itself saturates. While LOAD_TEST_TOKEN is set (only
+ * for the duration of a test run) a request carrying that token is limited per simulated user
+ * (X-Load-Test-Client) instead of per IP — like real users, who each have their own IP.
+ * Unset (the default) → disabled.
+ */
+const LOAD_TEST_TOKEN = process.env.LOAD_TEST_TOKEN || '';
+
+function isLoadTestRequest(req) {
+  const given = req.headers['x-load-test-token'];
+  if (!LOAD_TEST_TOKEN || typeof given !== 'string' || !req.headers['x-load-test-client']) return false;
+  const a = Buffer.from(given);
+  const b = Buffer.from(LOAD_TEST_TOKEN);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function clientKey(req) {
+  if (isLoadTestRequest(req)) return `loadtest:${String(req.headers['x-load-test-client']).slice(0, 64)}`;
+  return (req.headers['x-forwarded-for']?.split(',')[0].trim()) || req.ip || req.socket.remoteAddress || 'unknown';
+}
+
+/**
  * Creates a rate limiting middleware backed by Redis with local fail-open fallback.
  * @param {Object} options
  * @param {string} options.prefix Key namespace, e.g. 'global' or 'auth'
@@ -97,8 +120,7 @@ export function createRateLimiter({ prefix = 'global', windowSeconds = 60, maxRe
       return next();
     }
 
-    const clientIp = (req.headers['x-forwarded-for']?.split(',')[0].trim()) || req.ip || req.socket.remoteAddress || 'unknown';
-    const redisKey = `ratelimit:${prefix}:${clientIp}`;
+    const redisKey = `ratelimit:${prefix}:${clientKey(req)}`;
 
     try {
       if (redisClient && isRedisReady) {

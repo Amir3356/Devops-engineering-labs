@@ -1,4 +1,5 @@
 import { useAuth } from '../../context/AuthContext';
+import NotificationBell from '../../components/NotificationBell';
 import {
   Compass,
   ShoppingCart,
@@ -55,6 +56,12 @@ export default function ProductDiscoverySidebar({
           <span>My Orders</span>
           <span className="admin-nav-count">{ordersCount}</span>
         </button>
+
+        <NotificationBell
+          variant="sidebar"
+          active={activeTab === 'notifications'}
+          onClick={() => setActiveTab('notifications')}
+        />
       </nav>
 
       {/* Sidebar Footer: Identity + Sign Out */}

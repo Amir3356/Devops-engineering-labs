@@ -632,6 +632,46 @@ groups:
       summary: '{{ $labels.service }}: {{ $values.A.Value }} requests in flight'
       description: '{{ $labels.service }} has had more than 200 concurrent requests for 5 minutes.'
       dashboard_url: http://localhost:3001/d/nexuscommerce-overview/nexuscommerce-system-overview
+  - uid: approaching-capacity
+    title: Approaching capacity
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: 100 * max(active_users{service="api-gateway",window="1m"}) / scalar(last_over_time(k6_capacity_users[7d]) and on(testid) topk(1,
+          last_over_time(k6_capacity_result_time[7d])))
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 80
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    isPaused: false
+    labels:
+      severity: warning
+      category: Application performance
+    annotations:
+      summary: '{{ printf "%.1f" $values.A.Value }}% of measured capacity in use'
+      description: Concurrent users have been above 80% of the capacity measured by the latest load test (loadtest/run.sh, last 7 days) for 5
+        minutes. Plan scaling before latency degrades — see the Capacity & Concurrent Users dashboard.
+      dashboard_url: http://localhost:3001/d/nexuscommerce-capacity/nexuscommerce-capacity
   - uid: event-loop-lag
     title: Event loop blocked
     condition: C

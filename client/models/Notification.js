@@ -9,6 +9,8 @@ export const NOTIFICATION_TYPES = Object.freeze(['order', 'alert', 'security', '
  * @property {string} title
  * @property {string} message
  * @property {'order'|'alert'|'security'|'success'|'info'} type
+ * @property {string} category        'orders' | 'account' | 'general'
+ * @property {Object} data            link data, e.g. { orderId }
  * @property {boolean} isRead
  * @property {string|null} createdAt
  */
@@ -20,6 +22,8 @@ export const createNotification = (raw = {}) => {
     title: toStr(pick(raw, 'title')),
     message: toStr(pick(raw, 'message')),
     type: NOTIFICATION_TYPES.includes(type) ? type : 'info',
+    category: toStr(pick(raw, 'category'), 'general'),
+    data: raw && typeof raw.data === 'object' && raw.data !== null ? raw.data : {},
     isRead: pick(raw, 'isRead', 'is_read') === true,
     createdAt: toIsoDate(pick(raw, 'createdAt', 'created_at')),
   };

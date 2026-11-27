@@ -6,8 +6,14 @@ import { success, error } from '../../utils/response.js';
 
 const router = express.Router();
 
-// Customer gets own notifications
+// Customer gets own notifications (?limit=50&before=<createdAt>&unread=true)
 router.get('/', requireAuth, (req, res) => notificationController.getMyNotifications(req, res));
+
+// Unread count for the navbar bell (cached in Redis)
+router.get('/unread-count', requireAuth, (req, res) => notificationController.getUnreadCount(req, res));
+
+// Mark all of the caller's notifications as read (before '/:id/read')
+router.patch('/read-all', requireAuth, (req, res) => notificationController.markAllAsRead(req, res));
 
 // Administrator gets all notifications
 router.get('/all', requireAdmin, (req, res) => notificationController.getAllNotifications(req, res));
@@ -31,10 +37,10 @@ router.post('/queue/emails/retry-failed', requireAdmin, async (req, res) => {
   }
 });
 
-// Send a notification
+// Send a notification (to yourself; admins may target any user)
 router.post('/', requireAuth, (req, res) => notificationController.createNotification(req, res));
 
-// Mark a notification as read
+// Mark one of your own notifications as read
 router.patch('/:id/read', requireAuth, (req, res) => notificationController.markAsRead(req, res));
 
 export default router;

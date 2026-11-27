@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { registerGaugeCollector } from '../utils/metrics.js';
 import { registerLiveGauge } from '../utils/livePush.js';
+import { authenticateFromUpgrade, handleAuthMessage, unbind, startUserChannelRelay } from './realtimeUsers.js';
 
 /**
  * Real-time channel for clients (ws://<gateway>/ws).
@@ -8,6 +9,9 @@ import { registerLiveGauge } from '../utils/livePush.js';
  * The gateway sees every write that goes to the microservices, so it announces
  * successful catalog/stock changes here. Messages carry no business data — only
  * "something changed" — and clients reload through the normal REST APIs.
+ *
+ * Sockets can also authenticate (see realtimeUsers.js) to receive their own notifications
+ * (notification.new / notification.read), relayed from Redis pub/sub.
  */
 
 const WS_PATH = '/ws';
@@ -18,14 +22,19 @@ let wss = null;
 export function attachRealtime(httpServer) {
   wss = new WebSocketServer({ server: httpServer, path: WS_PATH });
 
-  wss.on('connection', (socket) => {
+  wss.on('connection', (socket, req) => {
     socket.isAlive = true;
     socket.on('pong', () => {
       socket.isAlive = true;
     });
     socket.on('error', () => {});
+    socket.on('message', (raw) => handleAuthMessage(socket, raw).catch(() => {}));
+    socket.on('close', () => unbind(socket));
     socket.send(JSON.stringify({ type: 'connected', at: new Date().toISOString() }));
+    authenticateFromUpgrade(socket, req).catch(() => {});
   });
+
+  startUserChannelRelay();
 
   // Drop connections that stopped answering pings (closed laptops, lost Wi-Fi…)
   const heartbeat = setInterval(() => {

@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { AbilityProvider } from './context/AbilityContext';
 import { CartProvider, useCart } from './context/CartContext';
 import { EventProvider } from './context/EventContext';
+import { NotificationProvider } from './context/NotificationContext';
 import Navbar from './components/Navbar';
 import EventStreamDrawer from './components/EventStreamDrawer';
 import { AppRoutes } from './routes';
@@ -78,9 +79,11 @@ export default function App() {
       <EventProvider>
         <AuthProvider>
           <AbilityProvider>
-            <CartProvider>
-              <MainApp />
-            </CartProvider>
+            <NotificationProvider>
+              <CartProvider>
+                <MainApp />
+              </CartProvider>
+            </NotificationProvider>
           </AbilityProvider>
         </AuthProvider>
       </EventProvider>

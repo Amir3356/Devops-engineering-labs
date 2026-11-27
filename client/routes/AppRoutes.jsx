@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { HomePage, OrdersPage, ProfilePage, AdminPage, CustomerDashboardPage, NotFoundPage } from '../pages';
+import { HomePage, OrdersPage, ProfilePage, AdminPage, CustomerDashboardPage, NotificationsPage, NotFoundPage } from '../pages';
 import ProtectedRoute from './ProtectedRoute';
 
 /**
@@ -27,6 +27,14 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute action="read" subject="Order">
             <OrdersPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/notifications"
+        element={
+          <ProtectedRoute action="read" subject="Notification">
+            <NotificationsPage />
           </ProtectedRoute>
         }
       />

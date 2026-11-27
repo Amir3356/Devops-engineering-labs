@@ -5042,3 +5042,34 @@ td.font-mono-cell > span { display: block; }
     min-height: 420px;
   }
 }
+
+/* ===== Notification bell (live unread badge) ===== */
+.notif-bell-btn {
+  position: relative;
+}
+.notif-bell-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  animation: notif-badge-pop 0.25s ease-out;
+}
+.notif-bell-badge--inline {
+  margin-left: auto;
+}
+@keyframes notif-badge-pop {
+  from { transform: scale(0.6); }
+  to { transform: scale(1); }
+}
+@media (max-width: 640px) {
+  .notif-bell-label { display: none; }
+}
